@@ -2,21 +2,21 @@
 # Part of the Alya Language package ecosystem (https://github.com/alya-lang)
 
 extern "C" from "sqlite3"
-function sqlite3_libversion() -> str
+    function sqlite3_libversion() -> str
     function sqlite3_sourceid() -> str
-        function sqlite3_open(filename: str, pp_db: ptr) -> i32
-            function sqlite3_close(db: ptr) -> i32
-                function sqlite3_errmsg(db: ptr) -> str
-                    function sqlite3_exec(db: ptr, sql: str, callback: ptr, arg: ptr, errmsg: ptr) -> i32
-                        function sqlite3_changes(db: ptr) -> i32
-                            function sqlite3_last_insert_rowid(db: ptr) -> i64
-                                function sqlite3_prepare_v2(db: ptr, sql: str, nbyte: i32, pp_stmt: ptr, pz_tail: ptr) -> i32
-                                    function sqlite3_step(stmt: ptr) -> i32
-                                        function sqlite3_column_count(stmt: ptr) -> i32
-                                            function sqlite3_column_name(stmt: ptr, col: i32) -> str
-                                                function sqlite3_column_text(stmt: ptr, col: i32) -> str
-                                                    function sqlite3_column_int(stmt: ptr, col: i32) -> i32
-                                                        function sqlite3_column_double(stmt: ptr, col: i32) -> f64
-                                                            function sqlite3_column_type(stmt: ptr, col: i32) -> i32
-                                                                function sqlite3_finalize(stmt: ptr) -> i32
-                                                                end
+    function sqlite3_open(filename: str, pp_db: ptr) -> i32
+    function sqlite3_close(db: ptr) -> i32
+    function sqlite3_errmsg(db: ptr) -> str
+    function sqlite3_exec(db: ptr, sql: str, callback: ptr, arg: ptr, errmsg: ptr) -> i32
+    function sqlite3_changes(db: ptr) -> i32
+    function sqlite3_last_insert_rowid(db: ptr) -> i64
+    function sqlite3_prepare_v2(db: ptr, sql: str, nbyte: i32, pp_stmt: ptr, pz_tail: ptr) -> i32
+    function sqlite3_step(stmt: ptr) -> i32
+    function sqlite3_column_count(stmt: ptr) -> i32
+    function sqlite3_column_name(stmt: ptr, col: i32) -> str
+    function sqlite3_column_text(stmt: ptr, col: i32) -> str
+    function sqlite3_column_int(stmt: ptr, col: i32) -> i32
+    function sqlite3_column_double(stmt: ptr, col: i32) -> f64
+    function sqlite3_column_type(stmt: ptr, col: i32) -> i32
+    function sqlite3_finalize(stmt: ptr) -> i32
+end
