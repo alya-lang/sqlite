@@ -1,0 +1,13 @@
+[package]
+name = "sqlite"
+version = "0.1.0"
+alya-version = "0.0.12"
+entry = "src/lib.alya"
+description = "Fast and lightweight SQLite3 bindings for Alya"
+authors = ["Alya Language Contributors <https://github.com/alya-lang>"]
+license = "MIT"
+homepage = "https://github.com/alya-lang/alya"
+repository = "https://github.com/alya-lang/sqlite"
+keywords = ["alya", "alya-lang", "package", "sqlite", "database", "sql", "sqlite3", "storage"]
+
+[dependencies]
