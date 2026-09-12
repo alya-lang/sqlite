@@ -30,7 +30,7 @@ sqlite/
 │   ├── sqlite3.c           # Full official SQLite3 engine source
 │   └── sqlite3.h           # SQLite3 C headers
 ├── src/
-│   ├── lib.alya            # Public API facade
+│   ├── lib.alya            # Public API facade & top-level re-exports
 │   ├── types.alya          # SQLite constants & Database struct
 │   ├── ffi.alya            # Native extern "C" declarations
 │   └── core/
@@ -42,6 +42,9 @@ sqlite/
 └── benches/
     └── bench_basic.alya    # Micro-benchmarks (>400k ops/s)
 ```
+
+> [!NOTE]
+> The SQLite3 C engine source is declared in `alya.toml` under `[build]`. During compilation, `alyac` automatically compiles `c/sqlite3.c` into an object file and caches it in `~/.alya/c_obj`, guaranteeing zero runtime installation requirements across Linux, macOS, and Windows.
 
 ---
 
@@ -68,66 +71,96 @@ alyac install
 ```alya
 import "sqlite"
 
-# 1. Open database (file or in-memory)
-let db = sqlite::open("app.db")
-# or: let db = sqlite::open_memory()
+function main()
+    # 1. Open database (file or in-memory)
+    let db = sqlite::open("app.db")
+    # or: let db = sqlite::open_memory()
 
-# 2. Execute DDL statements
-sqlite::execute(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, score REAL);")
+    # 2. Execute DDL statements
+    sqlite::execute(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, score REAL);")
 
-# 3. Insert records
-sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
-let alice_id = sqlite::last_insert_id(db)
+    # 3. Insert records
+    sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
+    let alice_id = sqlite::last_insert_id(db)
 
-sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
+    sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
 
-# 4. Scalar query
-let total = sqlite::query_scalar(db, "SELECT count(*) FROM users;")
-say "Total registered users: " + str(total)
+    # 4. Scalar query
+    let total = sqlite::query_scalar(db, "SELECT count(*) FROM users;")
+    say "Total registered users: " + str(total)
 
-# 5. Query rows
-let rows = sqlite::query(db, "SELECT id, name, score FROM users ORDER BY score DESC;")
-for r in rows
-    let id = sqlite::row_int(r, "id")
-    let name = sqlite::row_str(r, "name")
-    let score = sqlite::row_str(r, "score")
-    say "User #" + str(id) + ": " + name + " -> Score: " + score
+    # 5. Query rows
+    let rows = sqlite::query(db, "SELECT id, name, score FROM users ORDER BY score DESC;")
+    for r in rows
+        let id = sqlite::row_int(r, "id")
+        let name = sqlite::row_str(r, "name")
+        let score = sqlite::row_str(r, "score")
+        say "User #" + str(id) + ": " + name + " -> Score: " + score
+    end
+
+    # 6. Close database
+    sqlite::close(db)
 end
 
-# 6. Close database
-sqlite::close(db)
+main()
 ```
 
 ---
 
-## 📚 API Reference
+## 📖 API Reference
 
 ### Database Lifecycle
-- `sqlite::open(path: str) -> Database`: Opens or creates a file-based SQLite database.
-- `sqlite::open_memory() -> Database`: Opens a private, in-memory SQLite database (`:memory:`).
-- `sqlite::close(db: Database)`: Closes database handle.
-- `sqlite::error_message(db: Database) -> str`: Returns latest error message from engine.
-- `sqlite::version() -> str`: Returns SQLite library version (e.g. `"3.53.4"`).
-- `sqlite::source_id() -> str`: Returns SQLite source code identifier.
+| Function | Arguments | Returns | Description |
+|---|---|---|---|
+| `open(path)` | `path: str` | `Database` | Opens or creates a file-based SQLite database. |
+| `open_memory()` | none | `Database` | Opens a private, in-memory SQLite database (`:memory:`). |
+| `close(db)` | `db: Database` | `void` | Closes the open database connection and frees resources. |
+| `error_message(db)` | `db: Database` | `str` | Returns the most recent error message produced by the engine. |
+| `version()` | none | `str` | Returns the underlying SQLite3 library version string (e.g. `"3.53.4"`). |
+| `source_id()` | none | `str` | Returns the SQLite3 engine source code identifier and timestamp. |
 
 ### Query Execution
-- `sqlite::execute(db: Database, sql: str) -> i32`: Executes statement and returns affected row count.
-- `sqlite::query(db: Database, sql: str) -> Array`: Executes `SELECT` and returns array of row maps.
-- `sqlite::query_scalar(db: Database, sql: str) -> value`: Executes query and returns single scalar value.
-- `sqlite::table_exists(db: Database, table_name: str) -> bool`: Checks if table exists in schema.
-- `sqlite::last_insert_id(db: Database) -> i64`: Returns `ROWID` of last inserted row.
-- `sqlite::changes(db: Database) -> i32`: Returns number of rows modified by last query.
+| Function | Arguments | Returns | Description |
+|---|---|---|---|
+| `execute(db, sql)` | `db: Database, sql: str` | `i32` | Executes an SQL command (DDL/DML) and returns affected row count. |
+| `query(db, sql)` | `db: Database, sql: str` | `Array` | Executes a `SELECT` query and returns an array of row map dictionaries. |
+| `query_scalar(db, sql)` | `db: Database, sql: str` | `value` | Executes a query and returns the first column of the first row. |
+| `table_exists(db, name)` | `db: Database, name: str` | `bool` | Returns `true` if the specified table exists in the database schema. |
+| `last_insert_id(db)` | `db: Database` | `i64` | Returns the `ROWID` of the most recently inserted row. |
+| `changes(db)` | `db: Database` | `i32` | Returns the number of rows modified, inserted, or deleted by the last statement. |
 
 ### Row Value Helpers
-- `sqlite::row_str(row: Map, key: str) -> str`: Extracts string value from row safely.
-- `sqlite::row_int(row: Map, key: str) -> i32`: Extracts integer value from row.
-- `sqlite::row_float(row: Map, key: str) -> f64`: Extracts numeric float value from row.
+| Function | Arguments | Returns | Description |
+|---|---|---|---|
+| `row_str(row, key)` | `row: Map, key: str` | `str` | Safely extracts a string value from a query row map. |
+| `row_int(row, key)` | `row: Map, key: str` | `i32` | Safely extracts an integer value from a query row map. |
+| `row_float(row, key)` | `row: Map, key: str` | `f64` | Safely extracts a floating-point numeric value from a query row map. |
 
 ---
 
-## ⚡ Performance Benchmarks
+## 🧪 Running Tests & Benchmarks
 
-Measured on Windows 11 / x86_64:
+Run the automated test suite using `alyac`:
+
+```bash
+alyac test
+# or
+alyac run tests/test_basic.alya
+```
+
+Run performance micro-benchmarks:
+
+```bash
+alyac run benches/bench_basic.alya
+```
+
+Run runnable usage example:
+
+```bash
+alyac run examples/demo.alya
+```
+
+### Benchmark Results (Windows 11 / x86_64)
 
 ```text
 === Benchmark Suite: SQLite3 Performance Benchmarks ===
@@ -137,6 +170,25 @@ Measured on Windows 11 / x86_64:
 
 ---
 
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository and clone it locally
+2. Install dependencies:
+   ```bash
+   alyac install
+   ```
+3. Create your feature branch (`git checkout -b feature/my-feature`)
+4. Verify tests and formatting before opening a PR:
+   ```bash
+   alyac test
+   alyac fmt . --check
+   ```
+5. Commit your changes (`git commit -m "feat: add feature"`) and open a Pull Request
+
+---
+
 ## 📄 License
 
-MIT License © [Alya Language](https://github.com/alya-lang)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
