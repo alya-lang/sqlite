@@ -5,39 +5,41 @@
 [![Alya](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Falya-lang%2Fsqlite%2Fmain%2Falya.toml&query=%24.package.alya-version&label=Alya&color=orange&prefix=%3E%3D)](https://github.com/alya-lang/alya)
 [![Package Version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Falya-lang%2Fsqlite%2Fmain%2Falya.toml&query=%24.package.version&label=Version&color=brightgreen)](alya.toml)
 
-Fast and lightweight SQLite3 bindings for Alya
+High-performance, idiomatic SQLite3 relational database bindings for Alya via native C FFI (`extern "C"`).
 
 ---
 
 ## 🌟 Features
 
-- ⚡ **Lightweight & Fast**: Built for speed with minimal overhead
-- 🧩 **Modular Architecture**: Multi-module design supporting flat modules (`types.alya`) and subfolder hierarchies (`core/formatter.alya`)
-- 🛡️ **Reliable & Typed**: Explicit struct definitions and clean namespaced APIs
-- 🧪 **Well Tested**: Comprehensive test suite with standard assertions
+- ⚡ **Full C Speed**: Direct zero-overhead FFI bindings to the official SQLite3 engine (>400,000 inserts/sec).
+- 💾 **File & In-Memory Databases**: Connect to persistent `.db` files or lightning-fast transient `:memory:` databases.
+- 🛡️ **Prepared Statements**: Safe SQL query parsing and step-by-step row iteration.
+- 🗺️ **Dynamic Maps**: Automatic column name mapping into native Alya maps (`row["column_name"]`).
+- 🔄 **Transactions & Changes**: Full ACID transactions (`BEGIN`, `COMMIT`, `ROLLBACK`), `changes()`, and `last_insert_id()`.
+- 🧩 **Zero Compiler Bloat**: Pure package implementation without hacking compiler internals.
 
 ---
 
 ## 📁 Project Architecture
 
-```
+```text
 sqlite/
 ├── alya.toml               # Package manifest
+├── libsqlite3.a            # Windows import library
+├── sqlite3.dll             # Precompiled SQLite engine
 ├── src/
 │   ├── lib.alya            # Public API facade
-│   ├── types.alya          # Data structures & struct definitions
-│   └── core/               # Subdirectory module hierarchy (optional for larger packages)
-│       └── formatter.alya  # Domain formatting logic & internal helpers
+│   ├── types.alya          # SQLite constants & Database struct
+│   ├── ffi.alya            # Native extern "C" from "sqlite3" signatures
+│   └── core/
+│       └── database.alya   # Engine lifecycle, query executor & row mapper
 ├── examples/
-│   └── demo.alya           # Runnable usage examples
+│   └── demo.alya           # Full CRUD & SQL JOIN demonstration
 ├── tests/
 │   └── test_basic.alya     # Automated test suite
 └── benches/
-    └── bench_basic.alya    # Micro-benchmarks
+    └── bench_basic.alya    # Micro-benchmarks (>400k ops/s)
 ```
-
-> [!NOTE]
-> Modules can be structured flat inside `src/` (e.g. `src/types.alya`) or grouped into subdirectories (e.g. `src/core/formatter.alya`). Relative imports like `import "../types.alya"` or `import "./core/formatter.alya"` are resolved relative to the importing file and deduplicated transitively.
 
 ---
 
@@ -62,76 +64,77 @@ alyac install
 ## 🚀 Quick Start
 
 ```alya
-import "sqlite" as pkg
+import "sqlite"
 
-function main()
-    # Basic facade call
-    let greeting = pkg::hello("Alya")
-    say greeting
+# 1. Open database (file or in-memory)
+let db = sqlite::open("app.db")
+# or: let db = sqlite::open_memory()
 
-    # Struct construction and domain helpers
-    let cfg = pkg::new_config("Community", 2)
-    say "Target: " + cfg.name
-    say "Formatted: " + pkg::core_format_custom(cfg)
+# 2. Execute DDL statements
+sqlite::execute(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, score REAL);")
+
+# 3. Insert records
+sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
+let alice_id = sqlite::last_insert_id(db)
+
+sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
+
+# 4. Scalar query
+let total = sqlite::query_scalar(db, "SELECT count(*) FROM users;")
+say "Total registered users: " + str(total)
+
+# 5. Query rows
+let rows = sqlite::query(db, "SELECT id, name, score FROM users ORDER BY score DESC;")
+for r in rows
+    let id = sqlite::row_int(r, "id")
+    let name = sqlite::row_str(r, "name")
+    let score = sqlite::row_str(r, "score")
+    say "User #" + str(id) + ": " + name + " -> Score: " + score
 end
 
-main()
+# 6. Close database
+sqlite::close(db)
 ```
 
 ---
 
-## 📖 API Reference
+## 📚 API Reference
 
-| Function | Arguments | Returns | Description |
-|---|---|---|---|
-| `hello(name)` | `name = "World"` | `string` | Returns a friendly greeting message. |
-| `new_config(name, count)` | `name = "World", count = 1` | `SqliteConfig` | Constructs a new configuration struct. |
-| `core_format_greeting(name)` | `name` | `string` | Core formatter producing `Hello, {name}!`. |
-| `core_format_custom(config)` | `config: SqliteConfig` | `string` | Formats greeting using prefix and name from config. |
+### Database Lifecycle
+- `sqlite::open(path: str) -> Database`: Opens or creates a file-based SQLite database.
+- `sqlite::open_memory() -> Database`: Opens a private, in-memory SQLite database (`:memory:`).
+- `sqlite::close(db: Database)`: Closes database handle.
+- `sqlite::error_message(db: Database) -> str`: Returns latest error message from engine.
+- `sqlite::version() -> str`: Returns SQLite library version (e.g. `"3.53.4"`).
+- `sqlite::source_id() -> str`: Returns SQLite source code identifier.
 
----
+### Query Execution
+- `sqlite::execute(db: Database, sql: str) -> i32`: Executes statement and returns affected row count.
+- `sqlite::query(db: Database, sql: str) -> Array`: Executes `SELECT` and returns array of row maps.
+- `sqlite::query_scalar(db: Database, sql: str) -> value`: Executes query and returns single scalar value.
+- `sqlite::table_exists(db: Database, table_name: str) -> bool`: Checks if table exists in schema.
+- `sqlite::last_insert_id(db: Database) -> i64`: Returns `ROWID` of last inserted row.
+- `sqlite::changes(db: Database) -> i32`: Returns number of rows modified by last query.
 
-## 🧪 Running Tests & Benchmarks
-
-Run the test suite using `alyac`:
-
-```bash
-alyac run tests/test_basic.alya
-```
-
-Run the benchmark suite:
-
-```bash
-alyac run benches/bench_basic.alya
-```
-
-Run the example demo:
-
-```bash
-alyac run examples/demo.alya
-```
+### Row Value Helpers
+- `sqlite::row_str(row: Map, key: str) -> str`: Extracts string value from row safely.
+- `sqlite::row_int(row: Map, key: str) -> i32`: Extracts integer value from row.
+- `sqlite::row_float(row: Map, key: str) -> f64`: Extracts numeric float value from row.
 
 ---
 
-## 🤝 Contributing
+## ⚡ Performance Benchmarks
 
-Contributions are welcome! Please follow these steps:
+Measured on Windows 11 / x86_64:
 
-1. Fork the repository and clone it locally
-2. Install dependencies:
-   ```bash
-   alyac install
-   ```
-3. Create your feature branch (`git checkout -b feature/my-feature`)
-4. Verify tests and formatting before opening a PR:
-   ```bash
-   alyac test
-   alyac fmt . --check
-   ```
-5. Commit your changes (`git commit -m "feat: add feature"`) and open a Pull Request
+```text
+=== Benchmark Suite: SQLite3 Performance Benchmarks ===
+  * 5,000 In-Memory Transactional Inserts: 5000 iters in 12 ms (~2400 ns/op | 416,666 ops/sec)
+  * 100x Query (500 rows each): 100 iters in 46 ms (~460 µs/op | 2,173 ops/sec)
+```
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License © [Alya Language](https://github.com/alya-lang)

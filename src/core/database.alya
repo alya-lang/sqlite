@@ -1,0 +1,144 @@
+# Core SQLite Database Engine
+# Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+
+import "std/mem"
+import "../ffi.alya"
+import "../types.alya"
+
+function db_open(path)
+    let p_handle = alloc(8)
+    let rc = sqlite3_open(path, p_handle)
+    if rc != 0
+        let err_msg = "Failed to open SQLite database: " + path
+        free(p_handle)
+        throw err_msg
+    end
+
+    let handle = peek_int(p_handle, 0)
+    free(p_handle)
+
+    return Database(handle, path, 1)
+end
+
+function db_open_memory()
+    return db_open(":memory:")
+end
+
+function db_close(db)
+    if db.is_open != 1
+        return 0
+    end
+    let rc = sqlite3_close(db.handle)
+    db.is_open = 0
+    return rc
+end
+
+function db_error(db)
+    if db.is_open != 1
+        return "Database is closed"
+    end
+    return sqlite3_errmsg(db.handle)
+end
+
+function db_execute(db, sql)
+    if db.is_open != 1
+        throw "Cannot execute query on closed database"
+    end
+
+    let rc = sqlite3_exec(db.handle, sql, 0, 0, 0)
+    if rc != 0
+        let err = "SQLite error in '" + sql + "': " + sqlite3_errmsg(db.handle)
+        throw err
+    end
+
+    return sqlite3_changes(db.handle)
+end
+
+function db_last_insert_rowid(db)
+    if db.is_open != 1
+        return 0
+    end
+    return sqlite3_last_insert_rowid(db.handle)
+end
+
+function db_changes(db)
+    if db.is_open != 1
+        return 0
+    end
+    return sqlite3_changes(db.handle)
+end
+
+function db_query(db, sql)
+    if db.is_open != 1
+        throw "Cannot query closed database"
+    end
+
+    let p_stmt = alloc(8)
+    let rc_prep = sqlite3_prepare_v2(db.handle, sql, -1, p_stmt, 0)
+    if rc_prep != 0
+        let err = "Failed to prepare query '" + sql + "': " + sqlite3_errmsg(db.handle)
+        free(p_stmt)
+        throw err
+    end
+
+    let stmt = peek_int(p_stmt, 0)
+    free(p_stmt)
+
+    let col_count = sqlite3_column_count(stmt)
+    let col_names = []
+    let c = 0
+    while c < col_count
+        let cname = str_clone(sqlite3_column_name(stmt, c))
+        push(col_names, cname)
+        c += 1
+    end
+
+    let rows = []
+
+    # SQLITE_ROW = 100
+    while sqlite3_step(stmt) == 100
+        let row = map()
+        let idx = 0
+        while idx < col_count
+            let col_type = sqlite3_column_type(stmt, idx)
+            let key = col_names[idx]
+
+            # 1: INT, 5: NULL, others: TEXT/FLOAT/BLOB
+            if col_type == 1
+                row[key] = sqlite3_column_int(stmt, idx)
+            elif col_type == 5
+                row[key] = ""
+            else
+                row[key] = str_clone(sqlite3_column_text(stmt, idx))
+            end
+
+            idx += 1
+        end
+        push(rows, row)
+    end
+
+    sqlite3_finalize(stmt)
+    return rows
+end
+
+function db_query_scalar(db, sql)
+    let rows = db_query(db, sql)
+    if len(rows) == 0
+        return null
+    end
+    let first_row = rows[0]
+    let ks = keys(first_row)
+    for k in ks
+        return first_row[k]
+    end
+    return null
+end
+
+function db_table_exists(db, table_name)
+    let sql = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='" + table_name + "';"
+    let cnt = db_query_scalar(db, sql)
+    if cnt != null and cnt > 0
+        return 1
+    end
+    return 0
+end

@@ -1,33 +1,69 @@
-# Test suite for sqlite
-import "std/test"
-import "../src/lib.alya" as pkg
+# Basic tests for SQLite package
+import "../src/lib.alya" as sqlite
 
-function main()
-    test_suite("sqlite Test Suite")
-    let r = runner_new()
+say "=== SQLite Package Test ==="
 
-    # 1. Basic facade function
-    let res = pkg::hello("Alya")
-    runner_assert_str_eq(r, res, "Hello, Alya!", "pkg::hello returns formatted greeting")
-
-    # 2. Default parameter
-    let default_res = pkg::hello()
-    runner_assert_str_eq(r, default_res, "Hello, World!", "pkg::hello() uses default name")
-
-    # 3. Modular types & config constructor
-    let cfg = pkg::new_config("Community", 3)
-    runner_assert_str_eq(r, cfg.name, "Community", "pkg::new_config sets name correctly")
-    runner_assert_str_eq(r, cfg.prefix, "Hello", "pkg::new_config sets default prefix")
-    runner_assert_eq(r, cfg.count, 3, "pkg::new_config sets count correctly")
-
-    # 4. Core custom formatter using struct
-    let custom_res = pkg::core_format_custom(cfg)
-    runner_assert_str_eq(r, custom_res, "Hello, Community!", "pkg::core_format_custom formats using config")
-
-    let failed = runner_summary(r)
-    if failed > 0
-        exit(1)
-    end
+# 1. Version test
+let v = sqlite::version()
+say "Version: " + v
+if len(v) == 0
+    throw "Version string is empty"
 end
 
-main()
+# 2. In-Memory Database test
+let db = sqlite::open_memory()
+say "In-memory database opened"
+
+# 3. Create table
+sqlite::execute(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, score REAL);")
+say "Table created"
+
+if sqlite::table_exists(db, "users") != 1
+    throw "Table 'users' should exist"
+end
+if sqlite::table_exists(db, "non_existent_table") != 0
+    throw "Table 'non_existent_table' should not exist"
+end
+
+# 4. Insert data
+let n1 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
+let id1 = sqlite::last_insert_id(db)
+say "Inserted Alice with ID: " + str(id1)
+
+let n2 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
+let id2 = sqlite::last_insert_id(db)
+say "Inserted Bob with ID: " + str(id2)
+
+# 5. Query scalar
+let total_users = sqlite::query_scalar(db, "SELECT count(*) FROM users;")
+say "Total users: " + str(total_users)
+if total_users != 2
+    throw "Expected 2 users"
+end
+
+# 6. Query rows
+let rows = sqlite::query(db, "SELECT id, name, score FROM users ORDER BY id ASC;")
+say "Rows retrieved: " + str(len(rows))
+if len(rows) != 2
+    throw "Expected 2 rows returned"
+end
+
+for r in rows
+    let uid = sqlite::row_int(r, "id")
+    let uname = sqlite::row_str(r, "name")
+    let uscore = sqlite::row_str(r, "score")
+    say "User: " + str(uid) + " - " + uname + " (Score: " + uscore + ")"
+end
+
+# 7. Update data
+let updated = sqlite::execute(db, "UPDATE users SET score = 99.9 WHERE name = 'Alice';")
+say "Updated rows: " + str(updated)
+if updated != 1
+    throw "Expected 1 row updated"
+end
+
+# 8. Close database
+sqlite::close(db)
+say "Database closed successfully"
+
+say "✓ All SQLite tests passed!"

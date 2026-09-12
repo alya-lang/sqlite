@@ -1,27 +1,36 @@
 # Benchmark suite for sqlite
 import "std/bench"
-import "../src/lib.alya" as pkg
+import "../src/lib.alya" as sqlite
 
 function main()
-    let runner = bench_runner("sqlite Micro-Benchmarks")
+    let runner = bench_runner("SQLite3 Performance Benchmarks")
 
-    bench_start(runner, 100000)
+    let db = sqlite::open_memory()
+    sqlite::execute(db, "CREATE TABLE bench_records (id INTEGER PRIMARY KEY, name TEXT, val INTEGER);")
+
+    # 1. Batch Insert Benchmark
+    let count = 5000
+    bench_start(runner, count)
+    sqlite::execute(db, "BEGIN TRANSACTION;")
     let i = 0
-    while i < 100000
-        pkg::hello("Alya")
+    while i < count
+        let sql = "INSERT INTO bench_records (name, val) VALUES ('Item', " + str(i) + ");"
+        sqlite::execute(db, sql)
         i += 1
     end
-    bench_stop(runner, "hello() 100k calls")
+    sqlite::execute(db, "COMMIT;")
+    bench_stop(runner, "5,000 In-Memory Transactional Inserts")
 
-    bench_start(runner, 50000)
-    let j = 0
-    while j < 50000
-        let cfg = pkg::new_config("Bench", 1)
-        pkg::core_format_custom(cfg)
-        j += 1
+    # 2. Select All Query Benchmark
+    bench_start(runner, 100)
+    let k = 0
+    while k < 100
+        let rows = sqlite::query(db, "SELECT id, name, val FROM bench_records WHERE val < 500;")
+        k += 1
     end
-    bench_stop(runner, "new_config() + format_custom() 50k calls")
+    bench_stop(runner, "100x Query (500 rows each)")
 
+    sqlite::close(db)
     bench_summary(runner)
 end
 

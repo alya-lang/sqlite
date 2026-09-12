@@ -1,15 +1,66 @@
-# Example usage of sqlite
-import "../src/lib.alya" as pkg
+# Alya SQLite3 Package Demonstration
+# Shows opening a file-based database, transactions, CRUD operations, and queries.
+
+import "../src/lib.alya" as sqlite
+import "std/fs"
 
 function main()
-    # Basic greeting
-    let msg = pkg::hello("Alya Developer")
-    say msg
+    say "==========================================="
+    say "       ALYA SQLITE3 DEMO (C FFI ENGINE)    "
+    say "==========================================="
+    say "SQLite Engine Version: " + sqlite::version()
+    say "Source ID:             " + sqlite::source_id()
+    say "-------------------------------------------"
 
-    # Using configuration struct
-    let cfg = pkg::new_config("Modular Architecture", 5)
-    say "Target: " + cfg.name
-    say "Formatted: " + pkg::core_format_custom(cfg)
+    let db_file = "products.db"
+    if fs_exists(db_file)
+        remove_file(db_file)
+    end
+
+    # 1. Open file database
+    let db = sqlite::open(db_file)
+    say "1. Database opened: " + db_file
+
+    # 2. Create tables
+    sqlite::execute(db, "CREATE TABLE categories (id INTEGER PRIMARY KEY, title TEXT);")
+    sqlite::execute(db, "CREATE TABLE products (id INTEGER PRIMARY KEY, category_id INTEGER, name TEXT, price REAL, stock INTEGER);")
+    say "2. Tables created: categories, products"
+
+    # 3. Insert categories
+    sqlite::execute(db, "INSERT INTO categories (title) VALUES ('Electronics');")
+    let cat_id = sqlite::last_insert_id(db)
+    sqlite::execute(db, "INSERT INTO categories (title) VALUES ('Books');")
+
+    # 4. Insert products
+    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES (" + str(cat_id) + ", 'Laptop Pro 16', 2499.99, 12);")
+    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES (" + str(cat_id) + ", 'Mechanical Keyboard', 149.50, 45);")
+    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES (" + str(cat_id) + ", 'Wireless Mouse', 49.99, 110);")
+    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES (2, 'Compilers: Principles & Techniques', 89.00, 20);")
+    say "3. Data inserted successfully!"
+
+    # 5. Scalar queries
+    let total_prods = sqlite::query_scalar(db, "SELECT count(*) FROM products;")
+    say "4. Total product count: " + str(total_prods)
+
+    # 6. Relational JOIN Query
+    say "5. Running SQL JOIN Query (Products + Categories):"
+    let sql_join = "SELECT p.id, p.name, c.title as category, p.price, p.stock FROM products p JOIN categories c ON p.category_id = c.id ORDER BY p.price DESC;"
+    let rows = sqlite::query(db, sql_join)
+
+    for r in rows
+        let pid = sqlite::row_int(r, "id")
+        let pname = sqlite::row_str(r, "name")
+        let cat = sqlite::row_str(r, "category")
+        let price = sqlite::row_str(r, "price")
+        let stock = sqlite::row_int(r, "stock")
+        say "   [" + str(pid) + "] " + pname + " (" + cat + ") - $" + price + " | Stock: " + str(stock)
+    end
+
+    # 7. Close and cleanup
+    sqlite::close(db)
+    say "6. Database closed."
+    remove_file(db_file)
+    say "==========================================="
 end
 
 main()

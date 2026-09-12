@@ -1,16 +1,28 @@
 # Types and data structures for sqlite
 # Part of the Alya Language package ecosystem (https://github.com/alya-lang)
 
-struct SqliteConfig
-    name
-    prefix
-    count
+# SQLite return codes
+let SQLITE_OK = 0
+let SQLITE_ERROR = 1
+let SQLITE_ROW = 100
+let SQLITE_DONE = 101
+
+# SQLite column data types
+let SQLITE_INTEGER = 1
+let SQLITE_FLOAT = 2
+let SQLITE_TEXT = 3
+let SQLITE_BLOB = 4
+let SQLITE_NULL = 5
+
+struct Database
+    handle
+    path
+    is_open
 end
 
-function make_config(name = "World", count = 1)
-    return SqliteConfig {
-        name: name,
-        prefix: "Hello",
-        count: count
-    }
+struct Statement
+    db_handle
+    stmt_handle
+    sql
+    is_finalized
 end

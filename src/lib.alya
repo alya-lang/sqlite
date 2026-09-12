@@ -2,13 +2,73 @@
 # Part of the Alya Language package ecosystem (https://github.com/alya-lang)
 
 import "./types.alya"
-import "./core/formatter.alya"
+import "./ffi.alya"
+import "./core/database.alya"
 
-# Public facade functions
-function hello(name = "World")
-    return core_format_greeting(name)
+# Version info
+function version()
+    return sqlite3_libversion()
 end
 
-function new_config(name = "World", count = 1)
-    return make_config(name, count)
+function source_id()
+    return sqlite3_sourceid()
+end
+
+# Database lifecycle
+function open(path)
+    return db_open(path)
+end
+
+function open_memory()
+    return db_open_memory()
+end
+
+function close(db)
+    return db_close(db)
+end
+
+# Query and command execution
+function execute(db, sql)
+    return db_execute(db, sql)
+end
+
+function query(db, sql)
+    return db_query(db, sql)
+end
+
+function query_scalar(db, sql)
+    return db_query_scalar(db, sql)
+end
+
+function last_insert_id(db)
+    return db_last_insert_rowid(db)
+end
+
+function changes(db)
+    return db_changes(db)
+end
+
+function table_exists(db, table_name)
+    return db_table_exists(db, table_name)
+end
+
+function error_message(db)
+    return db_error(db)
+end
+
+# Row value extraction helpers
+function row_str(row, key)
+    let val = row[key]
+    if val == null
+        return ""
+    end
+    return str_from_ptr(val)
+end
+
+function row_int(row, key)
+    return row[key]
+end
+
+function row_float(row, key)
+    return row[key]
 end
