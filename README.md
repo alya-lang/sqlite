@@ -12,6 +12,7 @@ High-performance, idiomatic SQLite3 relational database bindings for Alya via na
 ## 🌟 Features
 
 - ⚡ **Full C Speed**: Direct zero-overhead FFI bindings to the official SQLite3 engine (>400,000 inserts/sec).
+- 📦 **Zero External Dependencies**: Official SQLite3 C engine bundled directly (`c/sqlite3.c`). Automatically compiled and cached with zero DLLs, `.so`, or `.dylib` needed!
 - 💾 **File & In-Memory Databases**: Connect to persistent `.db` files or lightning-fast transient `:memory:` databases.
 - 🛡️ **Prepared Statements**: Safe SQL query parsing and step-by-step row iteration.
 - 🗺️ **Dynamic Maps**: Automatic column name mapping into native Alya maps (`row["column_name"]`).
@@ -24,13 +25,14 @@ High-performance, idiomatic SQLite3 relational database bindings for Alya via na
 
 ```text
 sqlite/
-├── alya.toml               # Package manifest
-├── libsqlite3.a            # Windows import library
-├── sqlite3.dll             # Precompiled SQLite engine
+├── alya.toml               # Package manifest with [build] c-sources
+├── c/                      # Bundled SQLite3 C Amalgamation
+│   ├── sqlite3.c           # Full official SQLite3 engine source
+│   └── sqlite3.h           # SQLite3 C headers
 ├── src/
 │   ├── lib.alya            # Public API facade
 │   ├── types.alya          # SQLite constants & Database struct
-│   ├── ffi.alya            # Native extern "C" from "sqlite3" signatures
+│   ├── ffi.alya            # Native extern "C" declarations
 │   └── core/
 │       └── database.alya   # Engine lifecycle, query executor & row mapper
 ├── examples/
