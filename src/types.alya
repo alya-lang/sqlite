@@ -18,18 +18,6 @@ pub enum SqliteType
     Null = 5
 end
 
-# Backward-compatible constants
-pub const SQLITE_OK = SqliteCode.Ok
-pub const SQLITE_ERROR = SqliteCode.Error
-pub const SQLITE_ROW = SqliteCode.Row
-pub const SQLITE_DONE = SqliteCode.Done
-
-pub const SQLITE_INTEGER = SqliteType.Integer
-pub const SQLITE_FLOAT = SqliteType.Float
-pub const SQLITE_TEXT = SqliteType.Text
-pub const SQLITE_BLOB = SqliteType.Blob
-pub const SQLITE_NULL = SqliteType.Null
-
 pub struct Database
     handle
     path
