@@ -1,9 +1,9 @@
 [package]
 name = "sqlite"
 version = "0.1.0"
-alya-version = "0.0.14"
+alya-version = "0.0.16"
 entry = "src/lib.alya"
-description = "Fast and lightweight SQLite3 bindings for Alya"
+description = "Fast and lightweight SQLite3 bindings for Alya with bundled C engine (zero external dependencies)"
 authors = ["Alya Language Contributors <https://github.com/alya-lang>"]
 license = "MIT"
 homepage = "https://github.com/alya-lang/alya"
