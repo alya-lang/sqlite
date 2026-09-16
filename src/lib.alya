@@ -6,69 +6,103 @@ import "./ffi.alya"
 import "./core/database.alya"
 
 # Version info
-function version()
+pub function version()
     return sqlite3_libversion()
 end
 
-function source_id()
+pub function source_id()
     return sqlite3_sourceid()
 end
 
 # Database lifecycle
-function open(path)
+pub function open(path)
     return db_open(path)
 end
 
-function open_memory()
+pub function open_memory()
     return db_open_memory()
 end
 
-function close(db)
+pub function close(db)
     return db_close(db)
 end
 
 # Query and command execution
-function execute(db, sql)
+pub function execute(db, sql)
     return db_execute(db, sql)
 end
 
-function query(db, sql)
+pub function query(db, sql)
     return db_query(db, sql)
 end
 
-function query_scalar(db, sql)
+pub function query_scalar(db, sql)
     return db_query_scalar(db, sql)
 end
 
-function last_insert_id(db)
+pub function last_insert_id(db)
     return db_last_insert_rowid(db)
 end
 
-function changes(db)
+pub function changes(db)
     return db_changes(db)
 end
 
-function table_exists(db, table_name)
+pub function table_exists(db, table_name)
     return db_table_exists(db, table_name)
 end
 
-function error_message(db)
+pub function error_message(db)
     return db_error(db)
 end
 
 # Row value extraction helpers
-function row_str(row, key)
+pub function row_str(row, key)
     let val = row[key]
-    if val == null
+    if val is null
         return ""
     end
     return str_from_ptr(val)
 end
 
-function row_int(row, key)
+pub function row_int(row, key)
     return row[key]
 end
 
-function row_float(row, key)
+pub function row_float(row, key)
     return row[key]
+end
+
+# --- Struct Methods (Alya v0.0.18) ---
+
+pub function Database.execute(self, sql)
+    return db_execute(self, sql)
+end
+
+pub function Database.query(self, sql)
+    return db_query(self, sql)
+end
+
+pub function Database.query_scalar(self, sql)
+    return db_query_scalar(self, sql)
+end
+
+pub function Database.last_insert_id(self)
+    return db_last_insert_rowid(self)
+end
+
+pub function Database.changes(self)
+    return db_changes(self)
+end
+
+pub function Database.table_exists(self, table_name)
+    return db_table_exists(self, table_name)
+end
+
+pub function Database.close(self)
+    return db_close(self)
+end
+
+pub function Database.error(self)
+    return db_error(self)
 end

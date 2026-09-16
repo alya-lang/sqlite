@@ -103,13 +103,13 @@ function db_query(db, sql)
             let col_type = sqlite3_column_type(stmt, idx)
             let key = col_names[idx]
 
-            # 1: INT, 5: NULL, others: TEXT/FLOAT/BLOB
-            if col_type == 1
-                row[key] = sqlite3_column_int(stmt, idx)
-            elif col_type == 5
-                row[key] = ""
-            else
-                row[key] = str_clone(sqlite3_column_text(stmt, idx))
+            when col_type
+                is SqliteType.Integer, 1 then
+                    row[key] = sqlite3_column_int(stmt, idx)
+                is SqliteType.Null, 5 then
+                    row[key] = ""
+                else
+                    row[key] = str_clone(sqlite3_column_text(stmt, idx))
             end
 
             idx += 1
@@ -137,7 +137,7 @@ end
 function db_table_exists(db, table_name)
     let sql = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='" + table_name + "';"
     let cnt = db_query_scalar(db, sql)
-    if cnt != null and cnt > 0
+    if cnt is not null and cnt > 0
         return 1
     end
     return 0
