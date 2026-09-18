@@ -44,7 +44,7 @@ sqlite/
 ```
 
 > [!NOTE]
-> The SQLite3 C engine source is declared in `alya.toml` under `[build]`. During compilation, `alyac` automatically compiles `c/sqlite3.c` into an object file and caches it in `~/.alya/c_obj`, guaranteeing zero runtime installation requirements across Linux, macOS, and Windows.
+> The SQLite3 C engine source is declared in `alya.toml` under `[build]`. During compilation, `alya` automatically compiles `c/sqlite3.c` into an object file and caches it in `~/.alya/c_obj`, guaranteeing zero runtime installation requirements across Linux, macOS, and Windows.
 
 ---
 
@@ -60,8 +60,8 @@ sqlite = { git = "https://github.com/alya-lang/sqlite", branch = "main" }
 Or install it directly using the Alya package CLI:
 
 ```bash
-alyac add sqlite --git https://github.com/alya-lang/sqlite --branch main
-alyac install
+alya add sqlite --git https://github.com/alya-lang/sqlite --branch main
+alya install
 ```
 
 ---
@@ -140,24 +140,24 @@ main()
 
 ## 🧪 Running Tests & Benchmarks
 
-Run the automated test suite using `alyac`:
+Run the automated test suite using `alya`:
 
 ```bash
-alyac test
+alya test
 # or
-alyac run tests/test_basic.alya
+alya run tests/test_basic.alya
 ```
 
 Run performance micro-benchmarks:
 
 ```bash
-alyac run benches/bench_basic.alya
+alya run benches/bench_basic.alya
 ```
 
 Run runnable usage example:
 
 ```bash
-alyac run examples/demo.alya
+alya run examples/demo.alya
 ```
 
 ### Benchmark Results (Windows 11 / x86_64)
@@ -177,13 +177,13 @@ Contributions are welcome! Please follow these steps:
 1. Fork the repository and clone it locally
 2. Install dependencies:
    ```bash
-   alyac install
+   alya install
    ```
 3. Create your feature branch (`git checkout -b feature/my-feature`)
 4. Verify tests and formatting before opening a PR:
    ```bash
-   alyac test
-   alyac fmt . --check
+   alya test
+   alya fmt . --check
    ```
 5. Commit your changes (`git commit -m "feat: add feature"`) and open a Pull Request
 
