@@ -138,34 +138,36 @@ main()
 
 ---
 
-## 🧪 Running Tests & Benchmarks
+## 🧪 Running Tests, Benchmarks & Documentation
 
-Run the automated test suite using `alya`:
+Run the automated test suite using `alya test`:
 
 ```bash
 alya test
-# or
-alya run tests/test_basic.alya
 ```
 
-Run performance micro-benchmarks:
+Generate static API documentation:
+
+```bash
+alya doc . -o docs --markdown
+```
+
+Run the benchmark suite:
 
 ```bash
 alya run benches/bench_basic.alya
 ```
 
-Run runnable usage example:
+Run the example demo:
 
 ```bash
 alya run examples/demo.alya
 ```
 
-### Benchmark Results (Windows 11 / x86_64)
+Check code formatting:
 
-```text
-=== Benchmark Suite: SQLite3 Performance Benchmarks ===
-  * 5,000 In-Memory Transactional Inserts: 5000 iters in 12 ms (~2400 ns/op | 416,666 ops/sec)
-  * 100x Query (500 rows each): 100 iters in 46 ms (~460 µs/op | 2,173 ops/sec)
+```bash
+alya fmt . --check
 ```
 
 ---

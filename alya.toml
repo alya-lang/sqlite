@@ -13,6 +13,7 @@ keywords = ["alya", "alya-lang", "package", "sqlite", "database", "sql", "sqlite
 [dependencies]
 
 [build]
+links = "sqlite"
 c-sources = ["c/sqlite3.c"]
 c-flags = ["-O2", "-DSQLITE_THREADSAFE=0", "-DSQLITE_OMIT_LOAD_EXTENSION"]
 c-include-dirs = ["c"]
