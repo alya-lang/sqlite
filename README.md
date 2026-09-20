@@ -138,7 +138,7 @@ main()
 
 ---
 
-## 🧪 Running Tests, Benchmarks & Documentation
+## 🧪 Running Tests & Benchmarks
 
 Run the automated test suite using `alya test`:
 
@@ -168,6 +168,12 @@ Check code formatting:
 
 ```bash
 alya fmt . --check
+```
+
+Run static code linter:
+
+```bash
+alya lint . --check
 ```
 
 ---
