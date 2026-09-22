@@ -1,5 +1,9 @@
-# Alya SQLite3 - Foreign Function Interface (FFI) declarations
-# Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+## # sqlite/ffi
+##
+## SQLite3 foreign function interface (FFI) declarations.
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
+##
+## Binds the native `sqlite3` C library surface used by the engine.
 
 extern "C" from "sqlite3"
     function sqlite3_libversion() -> str

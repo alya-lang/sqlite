@@ -1,4 +1,6 @@
-# Benchmark suite for sqlite
+## Benchmark suite for the sqlite package
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+
 import "std/bench"
 import "../src/lib.alya" as sqlite
 
@@ -14,7 +16,7 @@ function main()
     sqlite::execute(db, "BEGIN TRANSACTION;")
     let i = 0
     while i < count
-        let sql = "INSERT INTO bench_records (name, val) VALUES ('Item', " + str(i) + ");"
+        let sql = "INSERT INTO bench_records (name, val) VALUES ('Item', {i});"
         sqlite::execute(db, sql)
         i += 1
     end

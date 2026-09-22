@@ -1,108 +1,295 @@
-# sqlite library
-# Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+## # sqlite
+##
+## SQLite library for Alya.
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
+##
+## Embeds the native `sqlite3` engine via FFI with connection lifecycle,
+## statement execution, typed row decoding, and struct method ergonomics.
 
 import "./types.alya"
 import "./ffi.alya"
 import "./core/database.alya"
 
-# Version info
-pub function version()
+# ───────────────────────────────────────────────────────────────
+# Version Info
+# ───────────────────────────────────────────────────────────────
+
+## Returns the native SQLite engine version string.
+##
+## ### Returns
+## The `sqlite3_libversion()` string.
+##
+## ### Examples
+## ```alya
+## say version() # "3.50.4"
+## ```
+pub function version() -> string
     return sqlite3_libversion()
 end
 
-pub function source_id()
+## Returns the native SQLite engine source identifier.
+##
+## ### Returns
+## The `sqlite3_sourceid()` string.
+pub function source_id() -> string
     return sqlite3_sourceid()
 end
 
-# Database lifecycle
-pub function open(path)
+# ───────────────────────────────────────────────────────────────
+# Database Lifecycle
+# ───────────────────────────────────────────────────────────────
+
+## Opens a file-backed database.
+##
+## ### Parameters
+## - `path`: Database file path string.
+##
+## ### Returns
+## An open `Database` handle.
+pub function open(path: string) -> Database
     return db_open(path)
 end
 
-pub function open_memory()
+## Opens a transient in-memory database.
+##
+## ### Returns
+## An open `Database` handle backed by `":memory:"`.
+pub function open_memory() -> Database
     return db_open_memory()
 end
 
-pub function close(db)
+## Closes a database connection.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Native close result code integer.
+pub function close(db: Database) -> int
     return db_close(db)
 end
 
-# Query and command execution
-pub function execute(db, sql)
+# ───────────────────────────────────────────────────────────────
+# Query and Command Execution
+# ───────────────────────────────────────────────────────────────
+
+## Executes a SQL statement, returning the affected row count.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SQL statement string.
+##
+## ### Returns
+## Affected row count integer.
+pub function execute(db: Database, sql: string) -> int
     return db_execute(db, sql)
 end
 
-pub function query(db, sql)
+## Runs a SELECT query, decoding every row into a column-name map.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SELECT statement string.
+##
+## ### Returns
+## Array of row maps (possibly empty).
+pub function query(db: Database, sql: string) -> array
     return db_query(db, sql)
 end
 
-pub function query_scalar(db, sql)
+## Returns the first column of the first row, or null when no rows match.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SELECT statement string.
+##
+## ### Returns
+## The scalar value, or null for empty results.
+pub function query_scalar(db: Database, sql: string)
     return db_query_scalar(db, sql)
 end
 
-pub function last_insert_id(db)
+## Returns the row id of the most recent successful insert.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Last insert row id integer.
+pub function last_insert_id(db: Database) -> int
     return db_last_insert_rowid(db)
 end
 
-pub function changes(db)
+## Returns the number of rows modified by the most recent statement.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Changed row count integer.
+pub function changes(db: Database) -> int
     return db_changes(db)
 end
 
-pub function table_exists(db, table_name)
+## Checks whether a table exists in the database schema.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `table_name`: Table name string.
+##
+## ### Returns
+## `1` when the table exists, `0` otherwise.
+pub function table_exists(db: Database, table_name: string) -> int
     return db_table_exists(db, table_name)
 end
 
-pub function error_message(db)
+## Returns the most recent engine error message for a connection.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## The engine error string.
+pub function error_message(db: Database) -> string
     return db_error(db)
 end
 
-# Row value extraction helpers
-pub function row_str(row, key)
+# ───────────────────────────────────────────────────────────────
+# Row Value Extraction Helpers
+# ───────────────────────────────────────────────────────────────
+
+## Extracts a text column value, mapping null to `""`.
+##
+## ### Parameters
+## - `row`: Row map from `query`.
+## - `key`: Column name string.
+##
+## ### Returns
+## The column text string.
+pub function row_str(row, key: string) -> string
     let val = row[key]
-    if val is null
-        return ""
+    return when
+        val is null => ""
+        else        => str_from_ptr(val)
     end
-    return str_from_ptr(val)
 end
 
-pub function row_int(row, key)
+## Extracts an integer column value.
+##
+## ### Parameters
+## - `row`: Row map from `query`.
+## - `key`: Column name string.
+##
+## ### Returns
+## The column integer value.
+pub function row_int(row, key: string) -> int
     return row[key]
 end
 
-pub function row_float(row, key)
+## Extracts a float column value.
+##
+## ### Parameters
+## - `row`: Row map from `query`.
+## - `key`: Column name string.
+##
+## ### Returns
+## The column float value.
+pub function row_float(row, key: string) -> float
     return row[key]
 end
 
-# --- Struct Methods (Alya v0.0.18) ---
+# ───────────────────────────────────────────────────────────────
+# Database Struct Methods
+# ───────────────────────────────────────────────────────────────
 
-pub function Database.execute(self, sql)
+## Executes a SQL statement on this database.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+## - `sql`: SQL statement string.
+##
+## ### Returns
+## Affected row count integer.
+pub function Database.execute(self: Database, sql: string) -> int
     return db_execute(self, sql)
 end
 
-pub function Database.query(self, sql)
+## Runs a SELECT query on this database.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+## - `sql`: SELECT statement string.
+##
+## ### Returns
+## Array of row maps (possibly empty).
+pub function Database.query(self: Database, sql: string) -> array
     return db_query(self, sql)
 end
 
-pub function Database.query_scalar(self, sql)
+## Returns the first column of the first row, or null when no rows match.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+## - `sql`: SELECT statement string.
+##
+## ### Returns
+## The scalar value, or null for empty results.
+pub function Database.query_scalar(self: Database, sql: string)
     return db_query_scalar(self, sql)
 end
 
-pub function Database.last_insert_id(self)
+## Returns the row id of the most recent successful insert.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+##
+## ### Returns
+## Last insert row id integer.
+pub function Database.last_insert_id(self: Database) -> int
     return db_last_insert_rowid(self)
 end
 
-pub function Database.changes(self)
+## Returns the number of rows modified by the most recent statement.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+##
+## ### Returns
+## Changed row count integer.
+pub function Database.changes(self: Database) -> int
     return db_changes(self)
 end
 
-pub function Database.table_exists(self, table_name)
+## Checks whether a table exists in this database.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+## - `table_name`: Table name string.
+##
+## ### Returns
+## `1` when the table exists, `0` otherwise.
+pub function Database.table_exists(self: Database, table_name: string) -> int
     return db_table_exists(self, table_name)
 end
 
-pub function Database.close(self)
+## Closes this database connection.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+##
+## ### Returns
+## Native close result code integer.
+pub function Database.close(self: Database) -> int
     return db_close(self)
 end
 
-pub function Database.error(self)
+## Returns the most recent engine error message for this connection.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+##
+## ### Returns
+## The engine error string.
+pub function Database.error(self: Database) -> string
     return db_error(self)
 end

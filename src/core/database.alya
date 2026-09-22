@@ -1,15 +1,32 @@
-# Core SQLite Database Engine
-# Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+## # sqlite/core/database
+##
+## Core SQLite database engine.
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
+##
+## Manages connection lifecycle, statement preparation, typed row decoding,
+## scalar queries, and existence checks over the native FFI layer.
 
 import "std/mem"
 import "../ffi.alya"
 import "../types.alya"
 
-function db_open(path)
+## Opens a file-backed database, throwing a descriptive error on failure.
+##
+## ### Parameters
+## - `path`: Database file path string.
+##
+## ### Returns
+## An open `Database` handle.
+##
+## ### Examples
+## ```alya
+## let db = db_open("products.db")
+## ```
+pub function db_open(path: string) -> Database
     let p_handle = alloc(8)
     let rc = sqlite3_open(path, p_handle)
     if rc != 0
-        let err_msg = "Failed to open SQLite database: " + path
+        let err_msg = "Failed to open SQLite database: {path}"
         free(p_handle)
         throw err_msg
     end
@@ -17,14 +34,30 @@ function db_open(path)
     let handle = peek_int(p_handle, 0)
     free(p_handle)
 
-    return Database(handle, path, 1)
+    return Database { handle: handle, path: path, is_open: 1 }
 end
 
-function db_open_memory()
+## Opens a transient in-memory database.
+##
+## ### Returns
+## An open `Database` handle backed by `":memory:"`.
+##
+## ### Examples
+## ```alya
+## let db = db_open_memory()
+## ```
+pub function db_open_memory() -> Database
     return db_open(":memory:")
 end
 
-function db_close(db)
+## Closes a database connection; closing twice safely returns `0`.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Native close result code integer.
+pub function db_close(db: Database) -> int
     if db.is_open != 1
         return 0
     end
@@ -33,42 +66,94 @@ function db_close(db)
     return rc
 end
 
-function db_error(db)
+## Returns the most recent engine error message for a connection.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## The engine error string, or `"Database is closed"` when shut.
+pub function db_error(db: Database) -> string
     if db.is_open != 1
         return "Database is closed"
     end
     return sqlite3_errmsg(db.handle)
 end
 
-function db_execute(db, sql)
+## Executes a SQL statement, returning the affected row count.
+##
+## Throws a descriptive error naming the statement on engine failure.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SQL statement string.
+##
+## ### Returns
+## Affected row count integer.
+##
+## ### Examples
+## ```alya
+## db_execute(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);")
+## ```
+pub function db_execute(db: Database, sql: string) -> int
     if db.is_open != 1
         throw "Cannot execute query on closed database"
     end
 
     let rc = sqlite3_exec(db.handle, sql, 0, 0, 0)
     if rc != 0
-        let err = "SQLite error in '" + sql + "': " + sqlite3_errmsg(db.handle)
+        let engine_msg = sqlite3_errmsg(db.handle)
+        let err = "SQLite error in '{sql}': {engine_msg}"
         throw err
     end
 
     return sqlite3_changes(db.handle)
 end
 
-function db_last_insert_rowid(db)
+## Returns the row id of the most recent successful insert.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Last insert row id integer (`0` when closed).
+pub function db_last_insert_rowid(db: Database) -> int
     if db.is_open != 1
         return 0
     end
     return sqlite3_last_insert_rowid(db.handle)
 end
 
-function db_changes(db)
+## Returns the number of rows modified by the most recent statement.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Changed row count integer (`0` when closed).
+pub function db_changes(db: Database) -> int
     if db.is_open != 1
         return 0
     end
     return sqlite3_changes(db.handle)
 end
 
-function db_query(db, sql)
+## Runs a SELECT query, decoding every row into a column-name map.
+##
+## Integer, null, and text-ish columns map to native values and strings.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SELECT statement string.
+##
+## ### Returns
+## Array of row maps (possibly empty).
+##
+## ### Examples
+## ```alya
+## let rows = db_query(db, "SELECT id, name FROM users ORDER BY id;")
+## ```
+pub function db_query(db: Database, sql: string) -> array
     if db.is_open != 1
         throw "Cannot query closed database"
     end
@@ -76,7 +161,8 @@ function db_query(db, sql)
     let p_stmt = alloc(8)
     let rc_prep = sqlite3_prepare_v2(db.handle, sql, -1, p_stmt, 0)
     if rc_prep != 0
-        let err = "Failed to prepare query '" + sql + "': " + sqlite3_errmsg(db.handle)
+        let engine_msg = sqlite3_errmsg(db.handle)
+        let err = "Failed to prepare query '{sql}': {engine_msg}"
         free(p_stmt)
         throw err
     end
@@ -121,7 +207,20 @@ function db_query(db, sql)
     return rows
 end
 
-function db_query_scalar(db, sql)
+## Returns the first column of the first row, or null when no rows match.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SELECT statement string.
+##
+## ### Returns
+## The scalar value, or null for empty results.
+##
+## ### Examples
+## ```alya
+## let total = db_query_scalar(db, "SELECT count(*) FROM users;")
+## ```
+pub function db_query_scalar(db: Database, sql: string)
     let rows = db_query(db, sql)
     if len(rows) == 0
         return null
@@ -134,11 +233,19 @@ function db_query_scalar(db, sql)
     return null
 end
 
-function db_table_exists(db, table_name)
-    let sql = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='" + table_name + "';"
+## Checks whether a table exists in the database schema.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `table_name`: Table name string.
+##
+## ### Returns
+## `1` when the table exists, `0` otherwise.
+pub function db_table_exists(db: Database, table_name: string) -> int
+    let sql = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='{table_name}';"
     let cnt = db_query_scalar(db, sql)
-    if cnt is not null and cnt > 0
-        return 1
+    return when
+        cnt is not null and cnt > 0 => 1
+        else                        => 0
     end
-    return 0
 end

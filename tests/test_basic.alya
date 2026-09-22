@@ -1,11 +1,13 @@
-# Basic tests for SQLite package
+## Basic tests for the sqlite package
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+
 import "../src/lib.alya" as sqlite
 
 say "=== SQLite Package Test ==="
 
 # 1. Version test
 let v = sqlite::version()
-say "Version: " + v
+say "Version: {v}"
 if len(v) == 0
     throw "Version string is empty"
 end
@@ -26,24 +28,25 @@ if sqlite::table_exists(db, "non_existent_table") != 0
 end
 
 # 4. Insert data
-let n1 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
+let _n1 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
 let id1 = sqlite::last_insert_id(db)
-say "Inserted Alice with ID: " + str(id1)
+say "Inserted Alice with ID: {id1}"
 
-let n2 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
+let _n2 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
 let id2 = sqlite::last_insert_id(db)
-say "Inserted Bob with ID: " + str(id2)
+say "Inserted Bob with ID: {id2}"
 
 # 5. Query scalar
 let total_users = sqlite::query_scalar(db, "SELECT count(*) FROM users;")
-say "Total users: " + str(total_users)
+say "Total users: {total_users}"
 if total_users != 2
     throw "Expected 2 users"
 end
 
 # 6. Query rows
 let rows = sqlite::query(db, "SELECT id, name, score FROM users ORDER BY id ASC;")
-say "Rows retrieved: " + str(len(rows))
+let row_count = len(rows)
+say "Rows retrieved: {row_count}"
 if len(rows) != 2
     throw "Expected 2 rows returned"
 end
@@ -52,12 +55,12 @@ for r in rows
     let uid = sqlite::row_int(r, "id")
     let uname = sqlite::row_str(r, "name")
     let uscore = sqlite::row_str(r, "score")
-    say "User: " + str(uid) + " - " + uname + " (Score: " + uscore + ")"
+    say "User: {uid} - {uname} (Score: {uscore})"
 end
 
 # 7. Update data
 let updated = sqlite::execute(db, "UPDATE users SET score = 99.9 WHERE name = 'Alice';")
-say "Updated rows: " + str(updated)
+say "Updated rows: {updated}"
 if updated != 1
     throw "Expected 1 row updated"
 end

@@ -1,7 +1,13 @@
-# Types and data structures for sqlite
-# Part of the Alya Language package ecosystem (https://github.com/alya-lang)
+## # sqlite/types
+##
+## Types and data structures for SQLite.
+## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
+##
+## Defines result codes, column types, and database connection handles.
 
-# SQLite return codes
+## SQLite return codes.
+##
+## Covers the core result values surfaced by the FFI layer.
 pub enum SqliteCode
     Ok = 0
     Error = 1
@@ -9,7 +15,9 @@ pub enum SqliteCode
     Done = 101
 end
 
-# SQLite column data types
+## SQLite column data types.
+##
+## Mirrors the `SQLITE_INTEGER`/`FLOAT`/`TEXT`/`BLOB`/`NULL` storage classes.
 pub enum SqliteType
     Integer = 1
     Float = 2
@@ -18,15 +26,28 @@ pub enum SqliteType
     Null = 5
 end
 
+## Open database connection handle.
+##
+## ### Fields
+## - `handle`: Native `sqlite3*` pointer value.
+## - `path`: Database file path, or `":memory:"`.
+## - `is_open`: `1` while the connection is open, `0` after close.
 pub struct Database
-    handle
-    path
-    is_open
+    handle: int
+    path: string
+    is_open: int
 end
 
+## Prepared statement handle.
+##
+## ### Fields
+## - `db_handle`: Owning native `sqlite3*` pointer value.
+## - `stmt_handle`: Native `sqlite3_stmt*` pointer value.
+## - `sql`: Original SQL source string.
+## - `is_finalized`: `1` after finalization, `0` while active.
 pub struct Statement
-    db_handle
-    stmt_handle
-    sql
-    is_finalized
+    db_handle: int
+    stmt_handle: int
+    sql: string
+    is_finalized: int
 end
