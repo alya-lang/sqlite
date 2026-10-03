@@ -34,7 +34,7 @@ pub function db_open(path: string) -> Database
     let handle = peek_int(p_handle, 0)
     free(p_handle)
 
-    return Database { handle: handle, path: path, is_open: 1 }
+    return Database { handle: handle, path: path, is_open: true }
 end
 
 ## Opens a transient in-memory database.
@@ -58,11 +58,11 @@ end
 ## ### Returns
 ## Native close result code integer.
 pub function db_close(db: Database) -> int
-    if db.is_open != 1
+    if db.is_open != true
         return 0
     end
     let rc = sqlite3_close(db.handle)
-    db.is_open = 0
+    db.is_open = false
     return rc
 end
 
@@ -74,7 +74,7 @@ end
 ## ### Returns
 ## The engine error string, or `"Database is closed"` when shut.
 pub function db_error(db: Database) -> string
-    if db.is_open != 1
+    if db.is_open != true
         return "Database is closed"
     end
     return sqlite3_errmsg(db.handle)
@@ -96,7 +96,7 @@ end
 ## db_execute(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);")
 ## ```
 pub function db_execute(db: Database, sql: string) -> int
-    if db.is_open != 1
+    if db.is_open != true
         throw "Cannot execute query on closed database"
     end
 
@@ -118,7 +118,7 @@ end
 ## ### Returns
 ## Last insert row id integer (`0` when closed).
 pub function db_last_insert_rowid(db: Database) -> int
-    if db.is_open != 1
+    if db.is_open != true
         return 0
     end
     return sqlite3_last_insert_rowid(db.handle)
@@ -132,7 +132,7 @@ end
 ## ### Returns
 ## Changed row count integer (`0` when closed).
 pub function db_changes(db: Database) -> int
-    if db.is_open != 1
+    if db.is_open != true
         return 0
     end
     return sqlite3_changes(db.handle)
@@ -154,7 +154,7 @@ end
 ## let rows = db_query(db, "SELECT id, name FROM users ORDER BY id;")
 ## ```
 pub function db_query(db: Database, sql: string) -> array
-    if db.is_open != 1
+    if db.is_open != true
         throw "Cannot query closed database"
     end
 
@@ -245,7 +245,7 @@ pub function db_table_exists(db: Database, table_name: string) -> int
     let sql = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='{table_name}';"
     let cnt = db_query_scalar(db, sql)
     return when
-        cnt is not null and cnt > 0 => 1
-        else                        => 0
+        cnt is not null and cnt > 0 => true
+        else                        => false
     end
 end

@@ -20,10 +20,10 @@ say "In-memory database opened"
 sqlite::execute(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, score REAL);")
 say "Table created"
 
-if sqlite::table_exists(db, "users") != 1
+if sqlite::table_exists(db, "users") != true
     throw "Table 'users' should exist"
 end
-if sqlite::table_exists(db, "non_existent_table") != 0
+if sqlite::table_exists(db, "non_existent_table") != false
     throw "Table 'non_existent_table' should not exist"
 end
 
