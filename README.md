@@ -15,6 +15,8 @@ High-performance, idiomatic SQLite3 relational database bindings for Alya via na
 - 📦 **Zero External Dependencies**: Official SQLite3 C engine bundled directly (`c/sqlite3.c`). Automatically compiled and cached with zero DLLs, `.so`, or `.dylib` needed!
 - 💾 **File & In-Memory Databases**: Connect to persistent `.db` files or lightning-fast transient `:memory:` databases.
 - 🛡️ **Prepared Statements**: Safe SQL query parsing and step-by-step row iteration.
+- 🔒 **Bound Parameters**: Injection-safe `?` placeholders with explicit typing (`param_text`, `param_int`, `param_float`, `param_null`, `param_blob`).
+- 🔢 **Native Typing**: 64-bit integers, round-trip floats, true `null`s, and binary-safe BLOB byte arrays.
 - 🗺️ **Dynamic Maps**: Automatic column name mapping into native Alya maps (`row["column_name"]`).
 - 🔄 **Transactions & Changes**: Full ACID transactions (`BEGIN`, `COMMIT`, `ROLLBACK`), `changes()`, and `last_insert_id()`.
 - 🧩 **Zero Compiler Bloat**: Pure package implementation without hacking compiler internals.
@@ -25,7 +27,7 @@ High-performance, idiomatic SQLite3 relational database bindings for Alya via na
 
 ```text
 sqlite/
-├── alya.toml               # Package manifest with [build] c-sources
+├── alya.toml               # Package manifest with [build] c-sources and [features] API slices
 ├── c/                      # Bundled SQLite3 C Amalgamation
 │   ├── sqlite3.c           # Full official SQLite3 engine source
 │   └── sqlite3.h           # SQLite3 C headers
@@ -64,6 +66,28 @@ alya add sqlite --git https://github.com/alya-lang/sqlite --branch main
 alya install
 ```
 
+### Package Features
+
+| Feature | Default | Description |
+|:---|:---:|:---|
+| `lifecycle` | ✅ | Connection lifecycle and engine version (`open`, `open_memory`, `close`, `version`, `source_id`). |
+| `write` | ✅ | DDL/DML execution, bound params, transactions, ids (`execute`, `execute_params`, `begin`/`commit`/`rollback`, `changes`, `last_insert_id`). |
+| `read` | ✅ | SELECT queries, scalars, schema checks (`query`, `query_scalar`, `query_params`, `table_exists`, `error_message`). |
+| `row_helpers` | ✅ | Typed column extraction (`row_str`, `row_int`, `row_float`, `row_bytes`). |
+
+```bash
+# Full build (default)
+alya install
+alya test
+
+# Slim build (engine only; facade slices drop from the public API)
+alya install --no-default-features
+alya test --no-default-features
+
+# Selective slice (e.g. lifecycle only)
+alya test --no-default-features --features lifecycle
+```
+
 ---
 
 ## 🚀 Quick Start
@@ -84,6 +108,9 @@ function main()
     let alice_id = sqlite::last_insert_id(db)
 
     sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
+
+    # 3b. Parameterized insert (quotes need no escaping, injection-safe)
+    sqlite::execute_params(db, "INSERT INTO users (name, score) VALUES (?, ?);", [sqlite::param_text("O'Brien"), sqlite::param_float(91.2)])
 
     # 4. Scalar query
     let total = sqlite::query_scalar(db, "SELECT count(*) FROM users;")
@@ -123,8 +150,13 @@ main()
 | Function | Arguments | Returns | Description |
 |---|---|---|---|
 | `execute(db, sql)` | `db: Database, sql: str` | `i32` | Executes an SQL command (DDL/DML) and returns affected row count. |
+| `execute_params(db, sql, params)` | `db: Database, sql: str, params: Array<DbParam>` | `i32` | Executes a statement with bound `?` parameters (injection-safe). |
 | `query(db, sql)` | `db: Database, sql: str` | `Array` | Executes a `SELECT` query and returns an array of row map dictionaries. |
+| `query_params(db, sql, params)` | `db: Database, sql: str, params: Array<DbParam>` | `Array` | Executes a parameterized `SELECT` and returns row maps. |
 | `query_scalar(db, sql)` | `db: Database, sql: str` | `value` | Executes a query and returns the first column of the first row. |
+| `query_scalar_params(db, sql, params)` | `db: Database, sql: str, params: Array<DbParam>` | `value` | Parameterized scalar query. |
+| `begin(db)` / `commit(db)` / `rollback(db)` | `db: Database` | `i32` | Transaction control wrappers. |
+| `param_int(v)` / `param_float(v)` / `param_text(v)` / `param_null()` / `param_blob(v)` | typed value | `DbParam` | Explicitly-typed `?` placeholder constructors. |
 | `table_exists(db, name)` | `db: Database, name: str` | `bool` | Returns `true` if the specified table exists in the database schema. |
 | `last_insert_id(db)` | `db: Database` | `i64` | Returns the `ROWID` of the most recently inserted row. |
 | `changes(db)` | `db: Database` | `i32` | Returns the number of rows modified, inserted, or deleted by the last statement. |
@@ -132,9 +164,10 @@ main()
 ### Row Value Helpers
 | Function | Arguments | Returns | Description |
 |---|---|---|---|
-| `row_str(row, key)` | `row: Map, key: str` | `str` | Safely extracts a string value from a query row map. |
-| `row_int(row, key)` | `row: Map, key: str` | `i32` | Safely extracts an integer value from a query row map. |
-| `row_float(row, key)` | `row: Map, key: str` | `f64` | Safely extracts a floating-point numeric value from a query row map. |
+| `row_str(row, key)` | `row: Map, key: str` | `str` | Safely extracts a string value from a query row map (`null` → `""`). |
+| `row_int(row, key)` | `row: Map, key: str` | `i32` | Safely extracts an integer value (`null` → `null`). |
+| `row_float(row, key)` | `row: Map, key: str` | `f64` | Safely extracts a floating-point value (`null` → `null`). |
+| `row_bytes(row, key)` | `row: Map, key: str` | `Array` | Extracts a BLOB column as a byte array (`null` → `null`). |
 
 ---
 

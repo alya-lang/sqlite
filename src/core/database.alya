@@ -138,9 +138,150 @@ pub function db_changes(db: Database) -> int
     return sqlite3_changes(db.handle)
 end
 
+## Binds every `?` placeholder of a prepared statement in order.
+##
+## Dispatches on the explicit `DbParam.kind` tag (never on the dynamic
+## value type) and throws on count mismatch, unknown kinds, or a
+## non-zero native bind result. Blob buffers use SQLITE_TRANSIENT, so
+## they are freed before returning.
+##
+## ### Parameters
+## - `stmt`: Native `sqlite3_stmt*` pointer value.
+## - `params`: Array of `DbParam` (one per `?`, 1-based in order).
+function bind_params(stmt, params)
+    let expected = sqlite3_bind_parameter_count(stmt)
+    let given = len(params)
+    if expected != given
+        throw "Parameter count mismatch: statement expects {expected} placeholder(s) but got {given}"
+    end
+    let i = 0
+    while i < given
+        let p = params[i]
+        let idx = i + 1
+        let rc = 0
+        when p.kind
+            is ParamKind.Int, 1 then
+                rc = sqlite3_bind_int64(stmt, idx, p.ival)
+            is ParamKind.Float, 2 then
+                rc = sqlite3_bind_double(stmt, idx, p.fval)
+            is ParamKind.Text, 3 then
+                rc = sqlite3_bind_text(stmt, idx, p.sval, -1, -1)
+            is ParamKind.Null, 4 then
+                rc = sqlite3_bind_null(stmt, idx)
+            is ParamKind.Blob, 5 then
+                let raw = p.bval
+                let n = len(raw)
+                if n == 0
+                    let empty = alloc(1)
+                    rc = sqlite3_bind_blob(stmt, idx, empty, 0, -1)
+                    free(empty)
+                else
+                    let buf = alloc(n)
+                    if buf == 0
+                        throw "Out of memory binding blob parameter {idx}"
+                    end
+                    let j = 0
+                    while j < n
+                        poke_byte(buf, j, bit_and(raw[j], 255))
+                        j += 1
+                    end
+                    rc = sqlite3_bind_blob(stmt, idx, buf, n, -1)
+                    free(buf)
+                end
+            else
+                throw "Unknown parameter kind for placeholder {idx}; use param_int/param_float/param_text/param_null/param_blob"
+        end
+        if rc != 0
+            throw "Failed to bind parameter {idx}"
+        end
+        i += 1
+    end
+end
+
+# FFI `-> str` returns a raw C pointer, and `str_clone` alone passes it
+# through untouched. `str_from_ptr` dereferences it into a string and the
+# outer `str_clone` heap-copies it so the value survives stepping and
+# finalization (column memory is transient).
+function col_text(stmt, idx) -> string
+    return str_clone(str_from_ptr(sqlite3_column_text(stmt, idx)))
+end
+
+function col_name(stmt, idx) -> string
+    return str_clone(str_from_ptr(sqlite3_column_name(stmt, idx)))
+end
+
+## Steps a prepared statement to completion, decoding every row.
+##
+## Column decoding follows the native `sqlite3_column_type` (not the
+## dynamic value type): INTEGER via 64-bit reads, FLOAT as the engine's
+## round-trip text, NULL as `null`, BLOB as byte arrays, TEXT as heap
+## strings. Throws when the terminal step code is not `SQLITE_DONE`.
+##
+## ### Parameters
+## - `stmt`: Native `sqlite3_stmt*` pointer value.
+## - `db_handle`: Owning native `sqlite3*` pointer for error messages.
+##
+## ### Returns
+## Array of row maps (possibly empty).
+function stmt_collect(stmt, db_handle) -> array
+    let col_count = sqlite3_column_count(stmt)
+    let col_names = []
+    let c = 0
+    while c < col_count
+        push(col_names, col_name(stmt, c))
+        c += 1
+    end
+
+    let rows = []
+
+    # SQLITE_ROW = 100, SQLITE_DONE = 101
+    let rc_step = sqlite3_step(stmt)
+    while rc_step == 100
+        let row = map()
+        let idx = 0
+        while idx < col_count
+            let col_type = sqlite3_column_type(stmt, idx)
+            let key = col_names[idx]
+
+            # INTEGER arrives as native int; FLOAT as the engine's
+            # round-trip text (dynamic map slots cannot retain float tags,
+            # so native doubles would read back as int bits).
+            when col_type
+                is SqliteType.Integer, 1 then
+                    row[key] = sqlite3_column_int64(stmt, idx)
+                is SqliteType.Null, 5 then
+                    row[key] = null
+                is SqliteType.Blob, 4 then
+                    let blob_ptr = sqlite3_column_blob(stmt, idx)
+                    let blob_len = sqlite3_column_bytes(stmt, idx)
+                    let bytes = []
+                    let b = 0
+                    while b < blob_len
+                        push(bytes, peek_byte(blob_ptr, b))
+                        b += 1
+                    end
+                    row[key] = bytes
+                else
+                    row[key] = col_text(stmt, idx)
+            end
+
+            idx += 1
+        end
+        push(rows, row)
+        rc_step = sqlite3_step(stmt)
+    end
+
+    if rc_step != 101
+        let engine_msg = sqlite3_errmsg(db_handle)
+        throw "SQLite step failed: {engine_msg}"
+    end
+    return rows
+end
+
 ## Runs a SELECT query, decoding every row into a column-name map.
 ##
-## Integer, null, and text-ish columns map to native values and strings.
+## Integer, float, null, blob, and text columns map to native integers,
+## round-trip text, nulls, byte arrays, and strings respectively.
 ##
 ## ### Parameters
 ## - `db`: Target `Database` handle.
@@ -170,40 +311,12 @@ pub function db_query(db: Database, sql: string) -> array
     let stmt = peek_int(p_stmt, 0)
     free(p_stmt)
 
-    let col_count = sqlite3_column_count(stmt)
-    let col_names = []
-    let c = 0
-    while c < col_count
-        let cname = str_clone(sqlite3_column_name(stmt, c))
-        push(col_names, cname)
-        c += 1
-    end
-
     let rows = []
-
-    # SQLITE_ROW = 100
-    while sqlite3_step(stmt) == 100
-        let row = map()
-        let idx = 0
-        while idx < col_count
-            let col_type = sqlite3_column_type(stmt, idx)
-            let key = col_names[idx]
-
-            when col_type
-                is SqliteType.Integer, 1 then
-                    row[key] = sqlite3_column_int(stmt, idx)
-                is SqliteType.Null, 5 then
-                    row[key] = ""
-                else
-                    row[key] = str_clone(sqlite3_column_text(stmt, idx))
-            end
-
-            idx += 1
-        end
-        push(rows, row)
+    try
+        rows = stmt_collect(stmt, db.handle)
+    finally
+        sqlite3_finalize(stmt)
     end
-
-    sqlite3_finalize(stmt)
     return rows
 end
 
@@ -233,7 +346,131 @@ pub function db_query_scalar(db: Database, sql: string)
     return null
 end
 
+## Executes a DML/DDL statement with bound `?` parameters.
+##
+## Values are bound from explicitly-typed `DbParam` entries (see
+## `param_int`, `param_float`, `param_text`, `param_null`, `param_blob`),
+## so text with quotes needs no escaping. Handles a single statement;
+## use `db_execute` for multi-statement scripts.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SQL statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## Affected row count integer.
+##
+## ### Examples
+## ```alya
+## db_execute_params(db, "INSERT INTO users (name, score) VALUES (?, ?);", [param_text("O'Brien"), param_float(95.5)])
+## ```
+pub function db_execute_params(db: Database, sql: string, params: array) -> int
+    if db.is_open != true
+        throw "Cannot execute query on closed database"
+    end
+
+    let p_stmt = alloc(8)
+    let rc_prep = sqlite3_prepare_v2(db.handle, sql, -1, p_stmt, 0)
+    if rc_prep != 0
+        let engine_msg = sqlite3_errmsg(db.handle)
+        let err = "Failed to prepare query '{sql}': {engine_msg}"
+        free(p_stmt)
+        throw err
+    end
+
+    let stmt = peek_int(p_stmt, 0)
+    free(p_stmt)
+
+    let affected = 0
+    try
+        bind_params(stmt, params)
+        # SQLITE_ROW = 100, SQLITE_DONE = 101
+        let rc_step = sqlite3_step(stmt)
+        while rc_step == 100
+            rc_step = sqlite3_step(stmt)
+        end
+        if rc_step != 101
+            let engine_msg = sqlite3_errmsg(db.handle)
+            throw "SQLite step failed for '{sql}': {engine_msg}"
+        end
+        affected = sqlite3_changes(db.handle)
+    finally
+        sqlite3_finalize(stmt)
+    end
+    return affected
+end
+
+## Runs a SELECT query with bound `?` parameters.
+##
+## Decoding matches `db_query`; placeholders are bound from `DbParam`
+## entries in order.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SELECT statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## Array of row maps (possibly empty).
+##
+## ### Examples
+## ```alya
+## let rows = db_query_params(db, "SELECT id FROM users WHERE name = ?;", [param_text("Alice")])
+## ```
+pub function db_query_params(db: Database, sql: string, params: array) -> array
+    if db.is_open != true
+        throw "Cannot query closed database"
+    end
+
+    let p_stmt = alloc(8)
+    let rc_prep = sqlite3_prepare_v2(db.handle, sql, -1, p_stmt, 0)
+    if rc_prep != 0
+        let engine_msg = sqlite3_errmsg(db.handle)
+        let err = "Failed to prepare query '{sql}': {engine_msg}"
+        free(p_stmt)
+        throw err
+    end
+
+    let stmt = peek_int(p_stmt, 0)
+    free(p_stmt)
+
+    let rows = []
+    try
+        bind_params(stmt, params)
+        rows = stmt_collect(stmt, db.handle)
+    finally
+        sqlite3_finalize(stmt)
+    end
+    return rows
+end
+
+## Returns the first column of the first row for a parameterized query.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SELECT statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## The scalar value, or null for empty results.
+pub function db_query_scalar_params(db: Database, sql: string, params: array)
+    let rows = db_query_params(db, sql, params)
+    if len(rows) == 0
+        return null
+    end
+    let first_row = rows[0]
+    let ks = keys(first_row)
+    for k in ks
+        return first_row[k]
+    end
+    return null
+end
+
 ## Checks whether a table exists in the database schema.
+##
+## The name is bound as a parameter, never interpolated, so quoted or
+## hostile names cannot escape the lookup query.
 ##
 ## ### Parameters
 ## - `db`: Target `Database` handle.
@@ -242,10 +479,42 @@ end
 ## ### Returns
 ## `1` when the table exists, `0` otherwise.
 pub function db_table_exists(db: Database, table_name: string) -> int
-    let sql = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='{table_name}';"
-    let cnt = db_query_scalar(db, sql)
+    let cnt = db_query_scalar_params(db, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?;", [param_text(table_name)])
     return when
         cnt is not null and cnt > 0 => true
         else                        => false
     end
+end
+
+## Begins a transaction.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+pub function db_begin(db: Database) -> int
+    return db_execute(db, "BEGIN;")
+end
+
+## Commits the current transaction.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+pub function db_commit(db: Database) -> int
+    return db_execute(db, "COMMIT;")
+end
+
+## Rolls back the current transaction.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+pub function db_rollback(db: Database) -> int
+    return db_execute(db, "ROLLBACK;")
 end

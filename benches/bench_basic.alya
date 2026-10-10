@@ -4,13 +4,31 @@
 import "std/bench"
 import "../src/lib.alya" as sqlite
 
-function main()
-    let runner = bench_runner("SQLite3 Performance Benchmarks")
+@cfg(feature = "lifecycle")
+function bench_lifecycle(runner)
+    # 1. Open/Close Benchmark
+    bench_start(runner, 1000)
+    let i = 0
+    while i < 1000
+        let db = sqlite::open_memory()
+        sqlite::close(db)
+        i += 1
+    end
+    bench_stop(runner, "1,000 in-memory open/close cycles")
+end
 
+@cfg(not(feature = "lifecycle"))
+function bench_lifecycle(runner)
+end
+
+# Batch inserts need `write` on an open `lifecycle` handle.
+@cfg(feature = "write")
+@cfg(feature = "lifecycle")
+function bench_write(runner)
     let db = sqlite::open_memory()
     sqlite::execute(db, "CREATE TABLE bench_records (id INTEGER PRIMARY KEY, name TEXT, val INTEGER);")
 
-    # 1. Batch Insert Benchmark
+    # 2. Batch Insert Benchmark
     let count = 5000
     bench_start(runner, count)
     sqlite::execute(db, "BEGIN TRANSACTION;")
@@ -21,18 +39,50 @@ function main()
         i += 1
     end
     sqlite::execute(db, "COMMIT;")
-    bench_stop(runner, "5,000 In-Memory Transactional Inserts")
+    bench_stop(runner, "5,000 in-memory transactional inserts")
 
-    # 2. Select All Query Benchmark
+    sqlite::close(db)
+end
+
+# Select benchmarks populate via `write`, so they need the trio.
+@cfg(feature = "read")
+@cfg(feature = "write")
+@cfg(feature = "lifecycle")
+function bench_read(runner)
+    let db = sqlite::open_memory()
+    sqlite::execute(db, "CREATE TABLE bench_records (id INTEGER PRIMARY KEY, name TEXT, val INTEGER);")
+    sqlite::execute(db, "BEGIN TRANSACTION;")
+    let i = 0
+    while i < 5000
+        sqlite::execute(db, "INSERT INTO bench_records (name, val) VALUES ('Item', {i});")
+        i += 1
+    end
+    sqlite::execute(db, "COMMIT;")
+
+    # 3. Select All Query Benchmark
     bench_start(runner, 100)
     let k = 0
     while k < 100
         let rows = sqlite::query(db, "SELECT id, name, val FROM bench_records WHERE val < 500;")
         k += 1
     end
-    bench_stop(runner, "100x Query (500 rows each)")
+    bench_stop(runner, "100x query (500 rows each)")
 
     sqlite::close(db)
+end
+
+function main()
+    let runner = bench_runner("SQLite3 Performance Benchmarks")
+
+    bench_lifecycle(runner)
+    @cfg(feature = "write")
+    @cfg(feature = "lifecycle")
+    bench_write(runner)
+    @cfg(feature = "read")
+    @cfg(feature = "write")
+    @cfg(feature = "lifecycle")
+    bench_read(runner)
+
     bench_summary(runner)
 end
 

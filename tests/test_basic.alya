@@ -1,72 +1,248 @@
-## Basic tests for the sqlite package
+## Test suite for sqlite
 ## Part of the Alya Language package ecosystem (https://github.com/alya-lang)
 
+import "std/test"
 import "../src/lib.alya" as sqlite
 
-say "=== SQLite Package Test ==="
+@cfg(feature = "lifecycle")
+function test_lifecycle(r)
+    # 1. Engine version strings
+    let v = sqlite::version()
+    runner_assert_true(r, len(v) > 0, "version string is non-empty")
+    let sid = sqlite::source_id()
+    runner_assert_true(r, len(sid) > 0, "source id string is non-empty")
 
-# 1. Version test
-let v = sqlite::version()
-say "Version: {v}"
-if len(v) == 0
-    throw "Version string is empty"
+    # 2. In-memory open/close lifecycle
+    let db = sqlite::open_memory()
+    runner_assert_true(r, db.is_open, "in-memory database starts open")
+    let rc = sqlite::close(db)
+    runner_assert_eq(r, rc, 0, "close returns native code 0")
+    # Closing twice safely returns 0
+    runner_assert_eq(r, sqlite::close(db), 0, "double close safely returns 0")
+
+    # 3. Method-call close form
+    let db2 = sqlite::open_memory()
+    runner_assert_eq(r, db2.close(), 0, "Database.close() returns 0")
 end
 
-# 2. In-Memory Database test
-let db = sqlite::open_memory()
-say "In-memory database opened"
-
-# 3. Create table
-sqlite::execute(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, score REAL);")
-say "Table created"
-
-if sqlite::table_exists(db, "users") != true
-    throw "Table 'users' should exist"
-end
-if sqlite::table_exists(db, "non_existent_table") != false
-    throw "Table 'non_existent_table' should not exist"
+@cfg(not(feature = "lifecycle"))
+function test_lifecycle(r)
 end
 
-# 4. Insert data
-let _n1 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
-let id1 = sqlite::last_insert_id(db)
-say "Inserted Alice with ID: {id1}"
+# Write/read integration coverage needs the full stack (open via
+# `lifecycle`, setup via `write`, assertions via `read`), so both
+# helpers below are gated on the trio and their calls in main() carry
+# the same gates instead of empty fallbacks.
+@cfg(feature = "write")
+@cfg(feature = "lifecycle")
+@cfg(feature = "read")
+function test_write(r)
+    let db = sqlite::open_memory()
+    sqlite::execute(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, score REAL);")
 
-let _n2 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
-let id2 = sqlite::last_insert_id(db)
-say "Inserted Bob with ID: {id2}"
+    # 1. Insert return codes, last id, changes
+    let n1 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
+    runner_assert_eq(r, n1, 1, "execute insert affects 1 row")
+    let id1 = sqlite::last_insert_id(db)
+    runner_assert_true(r, id1 > 0, "last insert id is positive")
+    runner_assert_eq(r, sqlite::changes(db), 1, "changes reports 1 row")
 
-# 5. Query scalar
-let total_users = sqlite::query_scalar(db, "SELECT count(*) FROM users;")
-say "Total users: {total_users}"
-if total_users != 2
-    throw "Expected 2 users"
+    let n2 = sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
+    runner_assert_eq(r, n2, 1, "second insert affects 1 row")
+    runner_assert_true(r, sqlite::last_insert_id(db) > id1, "second id grows past first id")
+
+    # 2. Update path
+    let updated = sqlite::execute(db, "UPDATE users SET score = 99.9 WHERE name = 'Alice';")
+    runner_assert_eq(r, updated, 1, "execute update affects 1 row")
+
+    # 3. Parameterized insert (int, float, text with quote, blob, null)
+    sqlite::execute(db, "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL, payload BLOB, note TEXT);")
+    let p1 = sqlite::execute_params(db, "INSERT INTO products (name, price, payload, note) VALUES (?, ?, ?, ?);", [sqlite::param_text("O'Brien"), sqlite::param_float(19.99), sqlite::param_blob([1, 2, 3, 255]), sqlite::param_null()])
+    runner_assert_eq(r, p1, 1, "parameterized insert affects 1 row")
+
+    # 4. Parameter count mismatch throws
+    let mismatch = false
+    try
+        sqlite::execute_params(db, "SELECT 1 WHERE 1 = ?;", [])
+    catch e
+        mismatch = true
+    end
+    runner_assert_true(r, mismatch, "parameter mismatch throws")
+
+    # 5. Method-call write forms + 64-bit integer insert into an INTEGER
+    # column (REAL affinity would decode as float; INTEGER decodes exact)
+    sqlite::execute(db, "CREATE TABLE bigints (val INTEGER);")
+    let big = 1099511627776
+    let affected = db.execute_params("INSERT INTO bigints (val) VALUES (?);", [sqlite::param_int(big)])
+    runner_assert_eq(r, affected, 1, "Database.execute_params affects 1 row")
+    let m2 = db.execute("INSERT INTO users (name, score) VALUES ('Carol', 70.0);")
+    runner_assert_eq(r, m2, 1, "Database.execute affects 1 row")
+    runner_assert_true(r, db.last_insert_id() > 0, "Database.last_insert_id is positive")
+    runner_assert_eq(r, db.changes(), 1, "Database.changes reports 1 row")
+
+    sqlite::close(db)
 end
 
-# 6. Query rows
-let rows = sqlite::query(db, "SELECT id, name, score FROM users ORDER BY id ASC;")
-let row_count = len(rows)
-say "Rows retrieved: {row_count}"
-if len(rows) != 2
-    throw "Expected 2 rows returned"
+@cfg(feature = "read")
+@cfg(feature = "write")
+@cfg(feature = "lifecycle")
+function test_read(r)
+    let db = sqlite::open_memory()
+    sqlite::execute(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, score REAL);")
+    sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Alice', 95.5);")
+    sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Bob', 88.0);")
+    sqlite::execute(db, "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL, payload BLOB, note TEXT);")
+    sqlite::execute_params(db, "INSERT INTO products (name, price, payload, note) VALUES (?, ?, ?, ?);", [sqlite::param_text("O'Brien"), sqlite::param_float(19.99), sqlite::param_blob([1, 2, 3, 255]), sqlite::param_null()])
+    sqlite::execute(db, "CREATE TABLE bigints (val INTEGER);")
+    sqlite::execute_params(db, "INSERT INTO bigints (val) VALUES (?);", [sqlite::param_int(1099511627776)])
+
+    # 1. Scalar + row queries (raw maps; row_* helpers belong to `row_helpers`)
+    let total = sqlite::query_scalar(db, "SELECT count(*) FROM users;")
+    runner_assert_eq(r, total, 2, "query_scalar counts 2 users")
+    let rows = sqlite::query(db, "SELECT id, name, score FROM users ORDER BY id ASC;")
+    runner_assert_eq(r, len(rows), 2, "query returns 2 rows")
+    runner_assert_str_eq(r, rows[0]["name"], "Alice", "first row is Alice")
+    runner_assert_str_eq(r, rows[1]["name"], "Bob", "second row is Bob")
+    # DB-decoded floats are printed via `str()` here: bare `float()` calls
+    # without an `is null` guard do not canonicalize the FFI value
+    # representation (see row_float, which guards first). Exact float
+    # equality on DB rows is asserted through `row_float` below.
+    runner_assert_str_eq(r, str(rows[0]["score"]), "95.5", "Alice score roundtrips")
+
+    # 2. Method-call read forms
+    runner_assert_eq(r, db.query_scalar("SELECT count(*) FROM users;"), 2, "Database.query_scalar counts 2")
+    let mrows = db.query("SELECT name FROM users ORDER BY id ASC;")
+    runner_assert_eq(r, len(mrows), 2, "Database.query returns 2 rows")
+
+    # 3. Parameterized reads + null/blob roundtrip via raw map
+    let prows = sqlite::query_params(db, "SELECT id, name, price, payload, note FROM products WHERE name = ?;", [sqlite::param_text("O'Brien")])
+    runner_assert_eq(r, len(prows), 1, "query_params returns 1 product row")
+    let pr = prows[0]
+    runner_assert_str_eq(r, pr["name"], "O'Brien", "quoted text roundtrips")
+    runner_assert_str_eq(r, str(pr["price"]), "19.99", "float roundtrips")
+    runner_assert_true(r, pr["note"] is null, "NULL note stays null in raw map")
+    let got = pr["payload"]
+    runner_assert_true(r, got is not null, "blob is not null")
+    runner_assert_eq(r, len(got), 4, "blob has 4 bytes")
+    runner_assert_eq(r, got[3], 255, "blob last byte is 255")
+    let pcnt = sqlite::query_scalar_params(db, "SELECT count(*) FROM products WHERE price > ?;", [sqlite::param_float(10.0)])
+    runner_assert_eq(r, pcnt, 1, "query_scalar_params counts 1")
+    let mprows = db.query_params("SELECT id FROM products WHERE name = ?;", [sqlite::param_text("O'Brien")])
+    runner_assert_eq(r, len(mprows), 1, "Database.query_params returns 1 row")
+    runner_assert_eq(r, db.query_scalar_params("SELECT count(*) FROM products WHERE price > ?;", [sqlite::param_float(10.0)]), 1, "Database.query_scalar_params counts 1")
+
+    # 3b. row_* helpers on DB-decoded rows (each statement needs `row_helpers`)
+    @cfg(feature = "row_helpers")
+    runner_assert_str_eq(r, sqlite::row_str(pr, "name"), "O'Brien", "row_str reads DB text")
+    @cfg(feature = "row_helpers")
+    runner_assert_true(r, sqlite::row_float(pr, "price") == 19.99, "row_float reads DB float")
+    @cfg(feature = "row_helpers")
+    runner_assert_eq(r, sqlite::row_int(pr, "price"), 19, "row_int coerces DB float")
+    @cfg(feature = "row_helpers")
+    runner_assert_eq(r, sqlite::row_int(rows[0], "id"), 1, "row_int reads DB integer")
+    @cfg(feature = "row_helpers")
+    runner_assert_str_eq(r, sqlite::row_str(pr, "note"), "", "row_str maps DB null to empty string")
+    @cfg(feature = "row_helpers")
+    runner_assert_true(r, sqlite::row_int(pr, "note") is null, "row_int on DB null is null")
+    @cfg(feature = "row_helpers")
+    runner_assert_true(r, sqlite::row_float(pr, "note") is null, "row_float on DB null is null")
+    @cfg(feature = "row_helpers")
+    runner_assert_eq(r, len(sqlite::row_bytes(pr, "payload")), 4, "row_bytes length on DB blob")
+
+    # 4. table_exists + injection safety
+    runner_assert_eq(r, sqlite::table_exists(db, "users"), true, "table 'users' exists")
+    runner_assert_eq(r, sqlite::table_exists(db, "non_existent_table"), false, "missing table reads false")
+    runner_assert_eq(r, db.table_exists("users"), true, "Database.table_exists reads true")
+    runner_assert_eq(r, sqlite::table_exists(db, "products' OR '1'='1"), false, "table_exists is not injectable")
+    let inj = sqlite::query_params(db, "SELECT id FROM products WHERE name = ?;", [sqlite::param_text("' OR '1'='1")])
+    runner_assert_eq(r, len(inj), 0, "parameterized query is not injectable")
+
+    # 5. 64-bit integer roundtrip on an INTEGER column via direct `==`
+    # (exact decode; `int()`/`row_int` on int64 crashes — compiler bug)
+    let big = 1099511627776
+    let bigrows = db.query_params("SELECT val FROM bigints WHERE val = ?;", [sqlite::param_int(big)])
+    runner_assert_eq(r, len(bigrows), 1, "big-int row found")
+    runner_assert_eq(r, bigrows[0]["val"], big, "int64 roundtrips")
+
+    # 6. Transactions (begin/commit/rollback)
+    sqlite::begin(db)
+    sqlite::execute(db, "INSERT INTO users (name, score) VALUES ('Carol', 70.0);")
+    sqlite::rollback(db)
+    runner_assert_eq(r, sqlite::query_scalar(db, "SELECT count(*) FROM users;"), 2, "rollback undoes Carol insert")
+    db.begin()
+    db.execute("INSERT INTO users (name, score) VALUES ('Dave', 61.0);")
+    db.commit()
+    runner_assert_eq(r, sqlite::query_scalar(db, "SELECT count(*) FROM users;"), 3, "commit persists Dave insert")
+    db.begin()
+    db.execute("INSERT INTO users (name, score) VALUES ('Erin', 55.0);")
+    db.rollback()
+    runner_assert_eq(r, sqlite::query_scalar(db, "SELECT count(*) FROM users;"), 3, "method rollback undoes Erin insert")
+
+    # 7. Error messages
+    let bad = false
+    try
+        sqlite::execute(db, "SELECT * FROM no_such_table;")
+    catch e
+        bad = true
+    end
+    runner_assert_true(r, bad, "bad SQL throws")
+    runner_assert_true(r, len(sqlite::error_message(db)) > 0, "error_message is non-empty after failure")
+    runner_assert_true(r, len(db.error()) > 0, "Database.error is non-empty after failure")
+
+    sqlite::close(db)
+    runner_assert_str_eq(r, sqlite::error_message(db), "Database is closed", "error on closed db")
 end
 
-for r in rows
-    let uid = sqlite::row_int(r, "id")
-    let uname = sqlite::row_str(r, "name")
-    let uscore = sqlite::row_str(r, "score")
-    say "User: {uid} - {uname} (Score: {uscore})"
+@cfg(feature = "row_helpers")
+function test_row_helpers(r)
+    # Row helpers operate on plain maps, so this slice is self-contained.
+    # NOTE: `row_float` on an Alya-level float literal miscompiles after the
+    # `is null` guard (compiler narrowing quirk); float passthrough is
+    # covered on DB-decoded rows in test_read instead. Literal ints and
+    # nulls exercise every other path here.
+    let row = { "name": "Alice", "age": 30, "score": 95.5, "note": null, "payload": [1, 2, 255] }
+
+    runner_assert_str_eq(r, sqlite::row_str(row, "name"), "Alice", "row_str reads text")
+    runner_assert_str_eq(r, sqlite::row_str(row, "age"), "30", "row_str renders int via str()")
+    runner_assert_str_eq(r, sqlite::row_str(row, "note"), "", "row_str maps null to empty string")
+
+    runner_assert_eq(r, sqlite::row_int(row, "age"), 30, "row_int reads int")
+    runner_assert_eq(r, sqlite::row_int(row, "score"), 95, "row_int coerces float via int()")
+    runner_assert_true(r, sqlite::row_int(row, "note") is null, "row_int on null is null")
+
+    runner_assert_true(r, sqlite::row_float(row, "age") == 30.0, "row_float promotes int via float()")
+    runner_assert_true(r, sqlite::row_float(row, "note") is null, "row_float on null is null")
+
+    let blob = sqlite::row_bytes(row, "payload")
+    runner_assert_true(r, blob is not null, "row_bytes is not null")
+    runner_assert_eq(r, len(blob), 3, "row_bytes length is 3")
+    runner_assert_eq(r, blob[2], 255, "row_bytes last byte is 255")
+    runner_assert_true(r, sqlite::row_bytes(row, "note") is null, "row_bytes on null is null")
 end
 
-# 7. Update data
-let updated = sqlite::execute(db, "UPDATE users SET score = 99.9 WHERE name = 'Alice';")
-say "Updated rows: {updated}"
-if updated != 1
-    throw "Expected 1 row updated"
+@cfg(not(feature = "row_helpers"))
+function test_row_helpers(r)
 end
 
-# 8. Close database
-sqlite::close(db)
-say "Database closed successfully"
+function main()
+    test_suite("sqlite Test Suite")
+    let r = runner_new()
 
-say "✓ All SQLite tests passed!"
+    test_lifecycle(r)
+    @cfg(feature = "write")
+    @cfg(feature = "lifecycle")
+    @cfg(feature = "read")
+    test_write(r)
+    @cfg(feature = "read")
+    @cfg(feature = "write")
+    @cfg(feature = "lifecycle")
+    test_read(r)
+    test_row_helpers(r)
+
+    let failed = runner_summary(r)
+    if failed > 0
+        say f"Test failure: {failed} test(s) failed."
+    end
+end
+
+main()

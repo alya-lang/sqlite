@@ -10,6 +10,16 @@ import "./types.alya"
 import "./ffi.alya"
 import "./core/database.alya"
 
+# Feature slices (`[features]` in `alya.toml`, all default-on):
+# - `lifecycle`: open/open_memory/close/version/source_id (+Database.close)
+# - `write`: execute/changes/last_id, parameterized writes, transactions
+#   (+Database.execute and friends)
+# - `read`: query/query_scalar/table_exists/error_message, parameterized
+#   reads (+Database.query and friends)
+# - `row_helpers`: row_str/row_int/row_float/row_bytes
+# The `ffi`/`core/database` engine imports stay unconditional (single C
+# engine); only this facade and `types.alya` shrink under slim builds.
+
 # ───────────────────────────────────────────────────────────────
 # Version Info
 # ───────────────────────────────────────────────────────────────
@@ -23,6 +33,9 @@ import "./core/database.alya"
 ## ```alya
 ## say version() # "3.50.4"
 ## ```
+##
+## Requires the `lifecycle` feature (default-on).
+@cfg(feature = "lifecycle")
 pub function version() -> string
     return sqlite3_libversion()
 end
@@ -31,6 +44,9 @@ end
 ##
 ## ### Returns
 ## The `sqlite3_sourceid()` string.
+##
+## Requires the `lifecycle` feature (default-on).
+@cfg(feature = "lifecycle")
 pub function source_id() -> string
     return sqlite3_sourceid()
 end
@@ -46,6 +62,9 @@ end
 ##
 ## ### Returns
 ## An open `Database` handle.
+##
+## Requires the `lifecycle` feature (default-on).
+@cfg(feature = "lifecycle")
 pub function open(path: string) -> Database
     return db_open(path)
 end
@@ -54,6 +73,9 @@ end
 ##
 ## ### Returns
 ## An open `Database` handle backed by `":memory:"`.
+##
+## Requires the `lifecycle` feature (default-on).
+@cfg(feature = "lifecycle")
 pub function open_memory() -> Database
     return db_open_memory()
 end
@@ -65,6 +87,9 @@ end
 ##
 ## ### Returns
 ## Native close result code integer.
+##
+## Requires the `lifecycle` feature (default-on).
+@cfg(feature = "lifecycle")
 pub function close(db: Database) -> int
     return db_close(db)
 end
@@ -81,6 +106,9 @@ end
 ##
 ## ### Returns
 ## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
 pub function execute(db: Database, sql: string) -> int
     return db_execute(db, sql)
 end
@@ -93,6 +121,9 @@ end
 ##
 ## ### Returns
 ## Array of row maps (possibly empty).
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
 pub function query(db: Database, sql: string) -> array
     return db_query(db, sql)
 end
@@ -105,8 +136,110 @@ end
 ##
 ## ### Returns
 ## The scalar value, or null for empty results.
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
 pub function query_scalar(db: Database, sql: string)
     return db_query_scalar(db, sql)
+end
+
+## Executes a DML/DDL statement with bound `?` parameters.
+##
+## Values come from explicitly-typed `DbParam` entries built with
+## `param_int`, `param_float`, `param_text`, `param_null`, or
+## `param_blob`, so quoting and injection handling are automatic.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SQL statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## Affected row count integer.
+##
+## ### Examples
+## ```alya
+## sqlite::execute_params(db, "INSERT INTO users (name, score) VALUES (?, ?);", [sqlite::param_text("O'Brien"), sqlite::param_float(95.5)])
+## ```
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
+pub function execute_params(db: Database, sql: string, params: array) -> int
+    return db_execute_params(db, sql, params)
+end
+
+## Runs a SELECT query with bound `?` parameters.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SELECT statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## Array of row maps (possibly empty).
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
+pub function query_params(db: Database, sql: string, params: array) -> array
+    return db_query_params(db, sql, params)
+end
+
+## Returns the first column of the first row for a parameterized query.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+## - `sql`: SELECT statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## The scalar value, or null for empty results.
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
+pub function query_scalar_params(db: Database, sql: string, params: array)
+    return db_query_scalar_params(db, sql, params)
+end
+
+## Begins a transaction.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
+pub function begin(db: Database) -> int
+    return db_begin(db)
+end
+
+## Commits the current transaction.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
+pub function commit(db: Database) -> int
+    return db_commit(db)
+end
+
+## Rolls back the current transaction.
+##
+## ### Parameters
+## - `db`: Target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
+pub function rollback(db: Database) -> int
+    return db_rollback(db)
 end
 
 ## Returns the row id of the most recent successful insert.
@@ -116,6 +249,9 @@ end
 ##
 ## ### Returns
 ## Last insert row id integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
 pub function last_insert_id(db: Database) -> int
     return db_last_insert_rowid(db)
 end
@@ -127,6 +263,9 @@ end
 ##
 ## ### Returns
 ## Changed row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
 pub function changes(db: Database) -> int
     return db_changes(db)
 end
@@ -139,6 +278,9 @@ end
 ##
 ## ### Returns
 ## `1` when the table exists, `0` otherwise.
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
 pub function table_exists(db: Database, table_name: string) -> int
     return db_table_exists(db, table_name)
 end
@@ -150,6 +292,9 @@ end
 ##
 ## ### Returns
 ## The engine error string.
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
 pub function error_message(db: Database) -> string
     return db_error(db)
 end
@@ -160,42 +305,101 @@ end
 
 ## Extracts a text column value, mapping null to `""`.
 ##
+## Integer and float values are rendered via `str()`, so this helper
+## stays compatible with numeric columns.
+##
 ## ### Parameters
 ## - `row`: Row map from `query`.
 ## - `key`: Column name string.
 ##
 ## ### Returns
 ## The column text string.
+##
+## Requires the `row_helpers` feature (default-on).
+@cfg(feature = "row_helpers")
 pub function row_str(row, key: string) -> string
     let val = row[key]
-    return when
-        val is null => ""
-        else        => str_from_ptr(val)
+    if val is null
+        return ""
     end
+    # The typed local normalizes values decoded from transient column
+    # memory; conversions straight off the dynamic read misdispatch.
+    if val is string
+        let s: string = val
+        return s
+    end
+    return str(val)
 end
 
-## Extracts an integer column value.
+## Extracts an integer column value, or null for SQL NULL.
+##
+## Integers pass through; floats and numeric text are coerced (text via
+## `float()` parsing, then truncated).
 ##
 ## ### Parameters
 ## - `row`: Row map from `query`.
 ## - `key`: Column name string.
 ##
 ## ### Returns
-## The column integer value.
-pub function row_int(row, key: string) -> int
-    return row[key]
+## The column integer value, or null when the column is SQL NULL.
+##
+## Requires the `row_helpers` feature (default-on).
+@cfg(feature = "row_helpers")
+pub function row_int(row, key: string)
+    let val = row[key]
+    if val is null
+        return null
+    end
+    if val is string
+        let s: string = val
+        return int(float(s))
+    end
+    return int(val)
 end
 
-## Extracts a float column value.
+## Extracts a float column value, or null for SQL NULL.
+##
+## REAL columns decode as round-trip text and are parsed here; integer
+## values are promoted with `float()`.
 ##
 ## ### Parameters
 ## - `row`: Row map from `query`.
 ## - `key`: Column name string.
 ##
 ## ### Returns
-## The column float value.
-pub function row_float(row, key: string) -> float
-    return row[key]
+## The column float value, or null when the column is SQL NULL.
+##
+## Requires the `row_helpers` feature (default-on).
+@cfg(feature = "row_helpers")
+pub function row_float(row, key: string)
+    let val = row[key]
+    if val is null
+        return null
+    end
+    if val is string
+        let s: string = val
+        return float(s)
+    end
+    return float(val)
+end
+
+## Extracts a blob column value as a byte array, or null for SQL NULL.
+##
+## ### Parameters
+## - `row`: Row map from `query`.
+## - `key`: Column name string.
+##
+## ### Returns
+## The column bytes (`[0..255]`), or null when the column is SQL NULL.
+##
+## Requires the `row_helpers` feature (default-on).
+@cfg(feature = "row_helpers")
+pub function row_bytes(row, key: string)
+    let val = row[key]
+    if val is null
+        return null
+    end
+    return val
 end
 
 # ───────────────────────────────────────────────────────────────
@@ -210,6 +414,9 @@ end
 ##
 ## ### Returns
 ## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
 pub function Database.execute(self: Database, sql: string) -> int
     return db_execute(self, sql)
 end
@@ -222,6 +429,9 @@ end
 ##
 ## ### Returns
 ## Array of row maps (possibly empty).
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
 pub function Database.query(self: Database, sql: string) -> array
     return db_query(self, sql)
 end
@@ -234,8 +444,101 @@ end
 ##
 ## ### Returns
 ## The scalar value, or null for empty results.
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
 pub function Database.query_scalar(self: Database, sql: string)
     return db_query_scalar(self, sql)
+end
+
+## Executes a DML/DDL statement with bound `?` parameters on this database.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+## - `sql`: SQL statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
+pub function Database.execute_params(self: Database, sql: string, params: array) -> int
+    return db_execute_params(self, sql, params)
+end
+
+## Runs a SELECT query with bound `?` parameters on this database.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+## - `sql`: SELECT statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## Array of row maps (possibly empty).
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
+pub function Database.query_params(self: Database, sql: string, params: array) -> array
+    return db_query_params(self, sql, params)
+end
+
+## Returns the first column of the first row for a parameterized query.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+## - `sql`: SELECT statement with `?` placeholders.
+## - `params`: Array of `DbParam`, one per placeholder in order.
+##
+## ### Returns
+## The scalar value, or null for empty results.
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
+pub function Database.query_scalar_params(self: Database, sql: string, params: array)
+    return db_query_scalar_params(self, sql, params)
+end
+
+## Begins a transaction on this database.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
+pub function Database.begin(self: Database) -> int
+    return db_begin(self)
+end
+
+## Commits the current transaction on this database.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
+pub function Database.commit(self: Database) -> int
+    return db_commit(self)
+end
+
+## Rolls back the current transaction on this database.
+##
+## ### Parameters
+## - `self`: The target `Database` handle.
+##
+## ### Returns
+## Affected row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
+pub function Database.rollback(self: Database) -> int
+    return db_rollback(self)
 end
 
 ## Returns the row id of the most recent successful insert.
@@ -245,6 +548,9 @@ end
 ##
 ## ### Returns
 ## Last insert row id integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
 pub function Database.last_insert_id(self: Database) -> int
     return db_last_insert_rowid(self)
 end
@@ -256,6 +562,9 @@ end
 ##
 ## ### Returns
 ## Changed row count integer.
+##
+## Requires the `write` feature (default-on).
+@cfg(feature = "write")
 pub function Database.changes(self: Database) -> int
     return db_changes(self)
 end
@@ -268,6 +577,9 @@ end
 ##
 ## ### Returns
 ## `1` when the table exists, `0` otherwise.
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
 pub function Database.table_exists(self: Database, table_name: string) -> int
     return db_table_exists(self, table_name)
 end
@@ -279,6 +591,9 @@ end
 ##
 ## ### Returns
 ## Native close result code integer.
+##
+## Requires the `lifecycle` feature (default-on).
+@cfg(feature = "lifecycle")
 pub function Database.close(self: Database) -> int
     return db_close(self)
 end
@@ -290,6 +605,9 @@ end
 ##
 ## ### Returns
 ## The engine error string.
+##
+## Requires the `read` feature (default-on).
+@cfg(feature = "read")
 pub function Database.error(self: Database) -> string
     return db_error(self)
 end

@@ -20,7 +20,18 @@ extern "C" from "sqlite3"
     function sqlite3_column_name(stmt: ptr, col: i32) -> str
     function sqlite3_column_text(stmt: ptr, col: i32) -> str
     function sqlite3_column_int(stmt: ptr, col: i32) -> i32
+    function sqlite3_column_int64(stmt: ptr, col: i32) -> i64
     function sqlite3_column_double(stmt: ptr, col: i32) -> f64
     function sqlite3_column_type(stmt: ptr, col: i32) -> i32
+    function sqlite3_column_blob(stmt: ptr, col: i32) -> ptr
+    function sqlite3_column_bytes(stmt: ptr, col: i32) -> i32
     function sqlite3_finalize(stmt: ptr) -> i32
+    # Parameter binding for prepared statements (SQLITE_TRANSIENT = -1:
+    # SQLite copies the value, so caller buffers can be freed right away).
+    function sqlite3_bind_int64(stmt: ptr, idx: i32, val: i64) -> i32
+    function sqlite3_bind_double(stmt: ptr, idx: i32, val: f64) -> i32
+    function sqlite3_bind_text(stmt: ptr, idx: i32, val: str, n: i32, destructor: ptr) -> i32
+    function sqlite3_bind_null(stmt: ptr, idx: i32) -> i32
+    function sqlite3_bind_blob(stmt: ptr, idx: i32, val: ptr, n: i32, destructor: ptr) -> i32
+    function sqlite3_bind_parameter_count(stmt: ptr) -> i32
 end

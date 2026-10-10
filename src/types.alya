@@ -4,10 +4,18 @@
 ## Part of the Alya Language package ecosystem (https://github.com/alya-lang).
 ##
 ## Defines result codes, column types, and database connection handles.
+##
+## Feature slicing: `SqliteCode` and `Statement` are gated to `lifecycle`.
+## `Database`, `SqliteType`, `ParamKind`, `DbParam` and the `param_*`
+## constructors stay ungated: the `core/database` engine compiles under
+## every feature set (single C engine) and references them across slices.
 
 ## SQLite return codes.
 ##
 ## Covers the core result values surfaced by the FFI layer.
+##
+## Requires the `lifecycle` feature (default-on).
+@cfg(feature = "lifecycle")
 pub enum SqliteCode
     Ok = 0
     Error = 1
@@ -45,9 +53,95 @@ end
 ## - `stmt_handle`: Native `sqlite3_stmt*` pointer value.
 ## - `sql`: Original SQL source string.
 ## - `is_finalized`: `1` after finalization, `0` while active.
+##
+## Requires the `lifecycle` feature (default-on).
+@cfg(feature = "lifecycle")
 pub struct Statement
     db_handle: int
     stmt_handle: int
     sql: string
     is_finalized: int
+end
+
+## Bound parameter kinds for `?` placeholders.
+##
+## Mirrors the SQLite storage classes so `db_execute_params` and
+## `db_query_params` can dispatch without runtime type guessing.
+pub enum ParamKind
+    Int = 1
+    Float = 2
+    Text = 3
+    Null = 4
+    Blob = 5
+end
+
+## A single explicitly-typed bound parameter.
+##
+## Use the `param_*` constructors so integers, floats, text, nulls and
+## blobs keep their static types all the way into the FFI bind call.
+##
+## ### Fields
+## - `kind`: One of `ParamKind` (1=int, 2=float, 3=text, 4=null, 5=blob).
+## - `ival`: Integer payload for `ParamKind.Int`.
+## - `fval`: Float payload for `ParamKind.Float`.
+## - `sval`: Text payload for `ParamKind.Text`.
+## - `bval`: Byte array payload (`[0..255]`) for `ParamKind.Blob`.
+pub struct DbParam
+    kind: int
+    ival: int
+    fval: float
+    sval: string
+    bval
+end
+
+## Creates an integer bound parameter.
+##
+## ### Parameters
+## - `v`: Integer value to bind.
+##
+## ### Returns
+## A `DbParam` with `ParamKind.Int`.
+pub function param_int(v: int) -> DbParam
+    return DbParam { kind: ParamKind.Int, ival: v, fval: 0.0, sval: "", bval: [] }
+end
+
+## Creates a float bound parameter.
+##
+## ### Parameters
+## - `v`: Float value to bind.
+##
+## ### Returns
+## A `DbParam` with `ParamKind.Float`.
+pub function param_float(v: float) -> DbParam
+    return DbParam { kind: ParamKind.Float, ival: 0, fval: v, sval: "", bval: [] }
+end
+
+## Creates a text bound parameter.
+##
+## ### Parameters
+## - `v`: Text value to bind (quotes need no escaping).
+##
+## ### Returns
+## A `DbParam` with `ParamKind.Text`.
+pub function param_text(v: string) -> DbParam
+    return DbParam { kind: ParamKind.Text, ival: 0, fval: 0.0, sval: v, bval: [] }
+end
+
+## Creates a null bound parameter.
+##
+## ### Returns
+## A `DbParam` with `ParamKind.Null`.
+pub function param_null() -> DbParam
+    return DbParam { kind: ParamKind.Null, ival: 0, fval: 0.0, sval: "", bval: [] }
+end
+
+## Creates a blob bound parameter.
+##
+## ### Parameters
+## - `v`: Byte array (`[0..255]`) to bind; may be empty.
+##
+## ### Returns
+## A `DbParam` with `ParamKind.Blob`.
+pub function param_blob(v) -> DbParam
+    return DbParam { kind: ParamKind.Blob, ival: 0, fval: 0.0, sval: "", bval: v }
 end
