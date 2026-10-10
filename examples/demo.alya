@@ -12,8 +12,8 @@ function demo_lifecycle()
     say "-------------------------------------------"
     let engine_ver = sqlite::version()
     let engine_src = sqlite::source_id()
-    say "SQLite Engine Version: {engine_ver}"
-    say "Source ID:             {engine_src}"
+    say f"SQLite Engine Version: {engine_ver}"
+    say f"Source ID:             {engine_src}"
 
     let mem = sqlite::open_memory()
     say "In-memory database opened."
@@ -38,7 +38,7 @@ function demo_write()
     end
 
     let db = sqlite::open(db_file)
-    say "1. Database opened: {db_file}"
+    say f"1. Database opened: {db_file}"
 
     sqlite::execute(db, "CREATE TABLE categories (id INTEGER PRIMARY KEY, title TEXT);")
     sqlite::execute(db, "CREATE TABLE products (id INTEGER PRIMARY KEY, category_id INTEGER, name TEXT, price REAL, stock INTEGER);")
@@ -46,9 +46,9 @@ function demo_write()
 
     sqlite::execute(db, "INSERT INTO categories (title) VALUES ('Electronics');")
     let cat_id = sqlite::last_insert_id(db)
-    say "3. Category id: {cat_id}"
-    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Laptop Pro 16', 2499.99, 12);")
-    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Mechanical Keyboard', 149.50, 45);")
+    say f"3. Category id: {cat_id}"
+    sqlite::execute(db, f"INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Laptop Pro 16', 2499.99, 12);")
+    sqlite::execute(db, f"INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Mechanical Keyboard', 149.50, 45);")
     say "4. Data inserted successfully!"
 
     sqlite::close(db)
@@ -74,13 +74,13 @@ function demo_read()
     sqlite::execute(db, "INSERT INTO categories (title) VALUES ('Electronics');")
     let cat_id = sqlite::last_insert_id(db)
     sqlite::execute(db, "INSERT INTO categories (title) VALUES ('Books');")
-    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Laptop Pro 16', 2499.99, 12);")
-    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Mechanical Keyboard', 149.50, 45);")
-    sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Wireless Mouse', 49.99, 110);")
+    sqlite::execute(db, f"INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Laptop Pro 16', 2499.99, 12);")
+    sqlite::execute(db, f"INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Mechanical Keyboard', 149.50, 45);")
+    sqlite::execute(db, f"INSERT INTO products (category_id, name, price, stock) VALUES ({cat_id}, 'Wireless Mouse', 49.99, 110);")
     sqlite::execute(db, "INSERT INTO products (category_id, name, price, stock) VALUES (2, 'Compilers: Principles & Techniques', 89.00, 20);")
 
     let total_prods = sqlite::query_scalar(db, "SELECT count(*) FROM products;")
-    say "Total product count: {total_prods}"
+    say f"Total product count: {total_prods}"
 
     say "Running SQL JOIN Query (Products + Categories):"
     let sql_join = "SELECT p.id, p.name, c.title as category, p.price, p.stock FROM products p JOIN categories c ON p.category_id = c.id ORDER BY p.price DESC;"
@@ -91,7 +91,7 @@ function demo_read()
         let cat = r["category"]
         let price = r["price"]
         let stock = r["stock"]
-        say "   [{pid}] {pname} ({cat}) - ${price} | Stock: {stock}"
+        say f"   [{pid}] {pname} ({cat}) - ${price} | Stock: {stock}"
     end
 
     sqlite::close(db)
@@ -110,10 +110,10 @@ function demo_row_helpers()
     let show_name = sqlite::row_str(row, "name")
     let show_stock = sqlite::row_float(row, "stock")
     let show_note = sqlite::row_str(row, "note")
-    say "id as int:      {show_id}"
-    say "name as text:   {show_name}"
-    say "stock as float: {show_stock}"
-    say "null as text:   '{show_note}'"
+    say f"id as int:      {show_id}"
+    say f"name as text:   {show_name}"
+    say f"stock as float: {show_stock}"
+    say f"null as text:   '{show_note}'"
 end
 
 @cfg(not(feature = "row_helpers"))

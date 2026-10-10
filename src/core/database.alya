@@ -26,7 +26,7 @@ pub function db_open(path: string) -> Database
     let p_handle = alloc(8)
     let rc = sqlite3_open(path, p_handle)
     if rc != 0
-        let err_msg = "Failed to open SQLite database: {path}"
+        let err_msg = f"Failed to open SQLite database: {path}"
         free(p_handle)
         throw err_msg
     end
@@ -103,7 +103,7 @@ pub function db_execute(db: Database, sql: string) -> int
     let rc = sqlite3_exec(db.handle, sql, 0, 0, 0)
     if rc != 0
         let engine_msg = sqlite3_errmsg(db.handle)
-        let err = "SQLite error in '{sql}': {engine_msg}"
+        let err = f"SQLite error in '{sql}': {engine_msg}"
         throw err
     end
 
@@ -152,7 +152,7 @@ function bind_params(stmt, params)
     let expected = sqlite3_bind_parameter_count(stmt)
     let given = len(params)
     if expected != given
-        throw "Parameter count mismatch: statement expects {expected} placeholder(s) but got {given}"
+        throw f"Parameter count mismatch: statement expects {expected} placeholder(s) but got {given}"
     end
     let i = 0
     while i < given
@@ -178,7 +178,7 @@ function bind_params(stmt, params)
                 else
                     let buf = alloc(n)
                     if buf == 0
-                        throw "Out of memory binding blob parameter {idx}"
+                        throw f"Out of memory binding blob parameter {idx}"
                     end
                     let j = 0
                     while j < n
@@ -189,10 +189,10 @@ function bind_params(stmt, params)
                     free(buf)
                 end
             else
-                throw "Unknown parameter kind for placeholder {idx}; use param_int/param_float/param_text/param_null/param_blob"
+                throw f"Unknown parameter kind for placeholder {idx}; use param_int/param_float/param_text/param_null/param_blob"
         end
         if rc != 0
-            throw "Failed to bind parameter {idx}"
+            throw f"Failed to bind parameter {idx}"
         end
         i += 1
     end
@@ -273,7 +273,7 @@ function stmt_collect(stmt, db_handle) -> array
 
     if rc_step != 101
         let engine_msg = sqlite3_errmsg(db_handle)
-        throw "SQLite step failed: {engine_msg}"
+        throw f"SQLite step failed: {engine_msg}"
     end
     return rows
 end
@@ -303,7 +303,7 @@ pub function db_query(db: Database, sql: string) -> array
     let rc_prep = sqlite3_prepare_v2(db.handle, sql, -1, p_stmt, 0)
     if rc_prep != 0
         let engine_msg = sqlite3_errmsg(db.handle)
-        let err = "Failed to prepare query '{sql}': {engine_msg}"
+        let err = f"Failed to prepare query '{sql}': {engine_msg}"
         free(p_stmt)
         throw err
     end
@@ -374,7 +374,7 @@ pub function db_execute_params(db: Database, sql: string, params: array) -> int
     let rc_prep = sqlite3_prepare_v2(db.handle, sql, -1, p_stmt, 0)
     if rc_prep != 0
         let engine_msg = sqlite3_errmsg(db.handle)
-        let err = "Failed to prepare query '{sql}': {engine_msg}"
+        let err = f"Failed to prepare query '{sql}': {engine_msg}"
         free(p_stmt)
         throw err
     end
@@ -392,7 +392,7 @@ pub function db_execute_params(db: Database, sql: string, params: array) -> int
         end
         if rc_step != 101
             let engine_msg = sqlite3_errmsg(db.handle)
-            throw "SQLite step failed for '{sql}': {engine_msg}"
+            throw f"SQLite step failed for '{sql}': {engine_msg}"
         end
         affected = sqlite3_changes(db.handle)
     finally
@@ -427,7 +427,7 @@ pub function db_query_params(db: Database, sql: string, params: array) -> array
     let rc_prep = sqlite3_prepare_v2(db.handle, sql, -1, p_stmt, 0)
     if rc_prep != 0
         let engine_msg = sqlite3_errmsg(db.handle)
-        let err = "Failed to prepare query '{sql}': {engine_msg}"
+        let err = f"Failed to prepare query '{sql}': {engine_msg}"
         free(p_stmt)
         throw err
     end

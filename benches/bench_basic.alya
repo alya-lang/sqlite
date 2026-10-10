@@ -34,7 +34,7 @@ function bench_write(runner)
     sqlite::execute(db, "BEGIN TRANSACTION;")
     let i = 0
     while i < count
-        let sql = "INSERT INTO bench_records (name, val) VALUES ('Item', {i});"
+        let sql = f"INSERT INTO bench_records (name, val) VALUES ('Item', {i});"
         sqlite::execute(db, sql)
         i += 1
     end
@@ -54,7 +54,7 @@ function bench_read(runner)
     sqlite::execute(db, "BEGIN TRANSACTION;")
     let i = 0
     while i < 5000
-        sqlite::execute(db, "INSERT INTO bench_records (name, val) VALUES ('Item', {i});")
+        sqlite::execute(db, f"INSERT INTO bench_records (name, val) VALUES ('Item', {i});")
         i += 1
     end
     sqlite::execute(db, "COMMIT;")
