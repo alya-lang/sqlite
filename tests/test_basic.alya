@@ -196,10 +196,11 @@ end
 @cfg(feature = "row_helpers")
 function test_row_helpers(r)
     # Row helpers operate on plain maps, so this slice is self-contained.
-    # NOTE: literal-float `row_float` and int64 `row_int` once failed here
-    # (dynamic conversion misdispatch, alya-lang/alya#151, fixed in-compiler
-    # via kind-routed float()/int()); the assertions below lock that, except
-    # int64 through untyped map reads, which still takes the legacy path.
+    # NOTE: literal-float `row_float` needs the post-fix v0.0.20 compiler
+    # (dynamic conversion misdispatch, alya-lang/alya#151, fixed
+    # in-compiler via kind-routed float()/int()); int64 `row_int` through
+    # untyped map reads still takes the legacy path — re-enable when that
+    # is fixed.
     let row = { "name": "Alice", "age": 30, "score": 95.5, "note": null, "payload": [1, 2, 255] }
 
     runner_assert_str_eq(r, sqlite::row_str(row, "name"), "Alice", "row_str reads text")
@@ -211,9 +212,6 @@ function test_row_helpers(r)
     runner_assert_true(r, sqlite::row_int(row, "note") is null, "row_int on null is null")
 
     runner_assert_true(r, sqlite::row_float(row, "score") == 95.5, "row_float reads literal float")
-    runner_assert_true(r, sqlite::row_float(row, "age") == 30.0, "row_float promotes int via float()")
-    runner_assert_true(r, sqlite::row_float(row, "note") is null, "row_float on null is null")
-
     runner_assert_true(r, sqlite::row_float(row, "age") == 30.0, "row_float promotes int via float()")
     runner_assert_true(r, sqlite::row_float(row, "note") is null, "row_float on null is null")
 
