@@ -350,6 +350,8 @@ pub function row_int(row, key: string)
     if val is null
         return null
     end
+    # String check first: decoded strings can also report `is int`, but a
+    # true int never reports `is string`.
     if val is string
         let s: string = val
         return int(float(s))
@@ -376,6 +378,9 @@ pub function row_float(row, key: string)
     if val is null
         return null
     end
+    # `is float` fast-paths are intentionally absent: on opaque reads the
+    # check is best-effort (alya-lang/alya#55) and misses, while `float()`
+    # on strings parses after typed-local normalization. See alya-lang/alya#151.
     if val is string
         let s: string = val
         return float(s)
