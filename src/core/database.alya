@@ -163,10 +163,12 @@ function bind_params(stmt, params)
             is ParamKind.Int, 1 then
                 rc = sqlite3_bind_int64(stmt, idx, p.ival)
             is ParamKind.Float, 2 then
-                # Native bind: FFI f64 routing is fixed (alya-lang/alya#160)
-                # and mistagged dynamics ride their bits through. If this
-                # regresses on any leg, fall back to `p.sval` text binding.
-                rc = sqlite3_bind_double(stmt, idx, p.fval)
+                # Bound as round-trip text from the construction-cached `sval`:
+                # native `bind_double` demonstrably stores garbage for
+                # mistagged dynamics on Windows ARM64 (see CI), while the
+                # text path is green on all six legs. REAL-affinity columns
+                # convert back losslessly.
+                rc = sqlite3_bind_text(stmt, idx, p.sval, -1, -1)
             is ParamKind.Text, 3 then
                 rc = sqlite3_bind_text(stmt, idx, p.sval, -1, -1)
             is ParamKind.Null, 4 then
