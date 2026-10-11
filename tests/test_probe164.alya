@@ -1,7 +1,6 @@
 ## TEMPORARY diagnostic for alya-lang/alya#164 (prints only, always green).
 ## Discriminates struct-field value provenance from the bind path on
 ## Windows ARM64. REMOVE after diagnosis.
-import "std/test"
 import "../src/lib.alya" as sqlite
 
 function main()
