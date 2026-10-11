@@ -27,7 +27,7 @@ row_helpers = []
 [build]
 links = "sqlite"
 c-sources = ["c/sqlite3.c"]
-c-flags = ["-O0", "-DSQLITE_THREADSAFE=0", "-DSQLITE_OMIT_LOAD_EXTENSION"]
+c-flags = ["-O2", "-DSQLITE_THREADSAFE=0", "-DSQLITE_OMIT_LOAD_EXTENSION"]
 c-include-dirs = ["c"]
 
 # [lint]

@@ -166,7 +166,6 @@ function bind_params(stmt, params)
                 # Native bind: FFI f64 routing is fixed (alya-lang/alya#160)
                 # and mistagged dynamics ride their bits through. If this
                 # regresses on any leg, fall back to `p.sval` text binding.
-                say "PROBE164 bind-fval: " + str(p.fval)
                 rc = sqlite3_bind_double(stmt, idx, p.fval)
             is ParamKind.Text, 3 then
                 rc = sqlite3_bind_text(stmt, idx, p.sval, -1, -1)

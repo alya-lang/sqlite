@@ -62,42 +62,6 @@ jobs:
         run: |
           alya install
 
-      - name: C toolchain double litmus (temporary diagnostic for alya-lang/alya#164)
-        # Bypasses the Alya compiler entirely: compiles the repo's own
-        # sqlite3.c with the same flags alya uses, then binds + reads a
-        # double through pure C. If this prints garbage, the win-arm64 C
-        # toolchain (not alya emission) is at fault.
-        if: matrix.label == 'Windows ARM64'
-        shell: pwsh
-        run: |
-          $cc = "$env:USERPROFILE\.alya\toolchain\bin\gcc.exe"
-          if (-not (Test-Path $cc)) { $cc = "gcc" }
-          @'
-          #include "sqlite3.h"
-          #include <stdio.h>
-          int main() {
-              sqlite3 *db; sqlite3_stmt *st;
-              if (sqlite3_open(":memory:", &db)) { printf("openfail\n"); return 1; }
-              if (sqlite3_prepare_v2(db, "SELECT ?", -1, &st, 0)) { printf("prepfail\n"); return 2; }
-              if (sqlite3_bind_double(st, 1, 19.99)) { printf("bindfail\n"); return 3; }
-              int rc = sqlite3_step(st);
-              double v = sqlite3_column_double(st, 0);
-              printf("rc=%d v=%f\n", rc, v);
-              sqlite3_finalize(st);
-              sqlite3_close(db);
-              return 0;
-          }
-          '@ | Out-File -Encoding ascii .litmus.c
-          foreach ($opt in @("-O2", "-O0")) {
-            Write-Host "=== litmus $opt ==="
-            & $cc -c $opt -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION -Ic c/sqlite3.c -o .litmus-sqlite3.o
-            if ($LASTEXITCODE -ne 0) { Write-Host "c-compile failed"; exit 1 }
-            & $cc .litmus.c .litmus-sqlite3.o -Ic -o .litmus.exe
-            if ($LASTEXITCODE -ne 0) { Write-Host "probe link failed"; exit 1 }
-            .\.litmus.exe
-          }
-          Remove-Item -Force .litmus.c, .litmus-sqlite3.o, .litmus.exe -ErrorAction SilentlyContinue
-
       - name: Run package test suite
         env:
           # Inner `alya test` suites default to a 60s per-binary timeout;
