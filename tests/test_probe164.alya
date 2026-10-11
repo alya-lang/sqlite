@@ -1,18 +1,29 @@
-## TEMPORARY diagnostic for alya-lang/alya#164 (prints only, always green).
+## TEMPORARY diagnostic for alya-lang/alya#164 (asserts surface values).
 ## Discriminates struct-field value provenance from the bind path on
 ## Windows ARM64. REMOVE after diagnosis.
+import "std/test"
 import "../src/lib.alya" as sqlite
 
-function main()
+function test_probe164(r)
     let p = sqlite::param_float(19.99)
-    say "PROBE164 fval-str: " + str(p.fval)
-    say "PROBE164 fval-kind: " + str(p.kind)
+    runner_assert_str_eq(r, str(p.fval), "19.99", "PROBE164 fval-str")
+    runner_assert_eq(r, p.kind, 2, "PROBE164 fval-kind")
     let db = sqlite::open_memory()
     sqlite::execute(db, "CREATE TABLE t (r REAL);")
     sqlite::execute_params(db, "INSERT INTO t (r) VALUES (?);", [sqlite::param_float(19.99)])
     let rows = sqlite::query(db, "SELECT r FROM t;")
-    say "PROBE164 read: " + str(rows[0]["r"])
+    runner_assert_str_eq(r, str(rows[0]["r"]), "19.99", "PROBE164 read")
     sqlite::close(db)
+end
+
+function main()
+    test_suite("probe164")
+    let r = runner_new()
+    test_probe164(r)
+    let failed = runner_summary(r)
+    if failed > 0
+        say f"Test failure: {failed} test(s) failed."
+    end
 end
 
 main()
