@@ -90,10 +90,10 @@ jobs:
           '@ | Out-File -Encoding ascii .litmus.c
           foreach ($opt in @("-O2", "-O0")) {
             Write-Host "=== litmus $opt ==="
-            & $cc $opt -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION -Ic c/sqlite3.c -o .litmus-sqlite3.o
+            & $cc -c $opt -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION -Ic c/sqlite3.c -o .litmus-sqlite3.o
             if ($LASTEXITCODE -ne 0) { Write-Host "c-compile failed"; exit 1 }
             & $cc .litmus.c .litmus-sqlite3.o -o .litmus.exe
-            if ($LASTEXITCODE -ne 0) { Write-Host "link failed"; exit 1 }
+            if ($LASTEXITCODE -ne 0) { Write-Host "probe link failed"; exit 1 }
             .\.litmus.exe
           }
           Remove-Item -Force .litmus.c, .litmus-sqlite3.o, .litmus.exe -ErrorAction SilentlyContinue
