@@ -69,7 +69,7 @@ alya install
 ### Package Features
 
 | Feature | Default | Description |
-|:---|:---:|:---|
+| :--- | :---: | :--- |
 | `lifecycle` | ✅ | Connection lifecycle and engine version (`open`, `open_memory`, `close`, `version`, `source_id`). |
 | `write` | ✅ | DDL/DML execution, bound params, transactions, ids (`execute`, `execute_params`, `begin`/`commit`/`rollback`, `changes`, `last_insert_id`). |
 | `read` | ✅ | SELECT queries, scalars, schema checks (`query`, `query_scalar`, `query_params`, `table_exists`, `error_message`). |
@@ -137,18 +137,20 @@ main()
 ## 📖 API Reference
 
 ### Database Lifecycle
+
 | Function | Arguments | Returns | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `open(path)` | `path: str` | `Database` | Opens or creates a file-based SQLite database. |
 | `open_memory()` | none | `Database` | Opens a private, in-memory SQLite database (`:memory:`). |
 | `close(db)` | `db: Database` | `void` | Closes the open database connection and frees resources. |
 | `error_message(db)` | `db: Database` | `str` | Returns the most recent error message produced by the engine. |
-| `version()` | none | `str` | Returns the underlying SQLite3 library version string (e.g. `"3.53.4"`). |
+| `version()` | none | `str` | Returns the underlying SQLite3 library version string (e.g. `"3.54.0"`). |
 | `source_id()` | none | `str` | Returns the SQLite3 engine source code identifier and timestamp. |
 
 ### Query Execution
+
 | Function | Arguments | Returns | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `execute(db, sql)` | `db: Database, sql: str` | `i32` | Executes an SQL command (DDL/DML) and returns affected row count. |
 | `execute_params(db, sql, params)` | `db: Database, sql: str, params: Array<DbParam>` | `i32` | Executes a statement with bound `?` parameters (injection-safe). |
 | `query(db, sql)` | `db: Database, sql: str` | `Array` | Executes a `SELECT` query and returns an array of row map dictionaries. |
@@ -162,8 +164,9 @@ main()
 | `changes(db)` | `db: Database` | `i32` | Returns the number of rows modified, inserted, or deleted by the last statement. |
 
 ### Row Value Helpers
+
 | Function | Arguments | Returns | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `row_str(row, key)` | `row: Map, key: str` | `str` | Safely extracts a string value from a query row map (`null` → `""`). |
 | `row_int(row, key)` | `row: Map, key: str` | `i32` | Safely extracts an integer value (`null` → `null`). |
 | `row_float(row, key)` | `row: Map, key: str` | `f64` | Safely extracts a floating-point value (`null` → `null`). |
@@ -217,15 +220,19 @@ Contributions are welcome! Please follow these steps:
 
 1. Fork the repository and clone it locally
 2. Install dependencies:
+
    ```bash
    alya install
    ```
+
 3. Create your feature branch (`git checkout -b feature/my-feature`)
 4. Verify tests and formatting before opening a PR:
+
    ```bash
    alya test
    alya fmt . --check
    ```
+
 5. Commit your changes (`git commit -m "feat: add feature"`) and open a Pull Request
 
 ---
