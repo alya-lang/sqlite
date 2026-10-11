@@ -107,13 +107,17 @@ end
 
 ## Creates a float bound parameter.
 ##
+## The text rendering is cached into `sval` at construction, where `v` is
+## still statically proven: bind reads floats from `sval` (see `bind_params`;
+## native `fval` neither travels intact nor routes correctly through FFI).
+##
 ## ### Parameters
 ## - `v`: Float value to bind.
 ##
 ## ### Returns
 ## A `DbParam` with `ParamKind.Float`.
 pub function param_float(v: float) -> DbParam
-    return DbParam { kind: ParamKind.Float, ival: 0, fval: v, sval: "", bval: [] }
+    return DbParam { kind: ParamKind.Float, ival: 0, fval: v, sval: str(v), bval: [] }
 end
 
 ## Creates a text bound parameter.
